@@ -41,6 +41,7 @@ export interface Location {
   name: string;
   type: LocationType;
   address: string;
+  area: string; // Area/Region (e.g., "Clifton", "Gulshan", "DHA")
   coordinates: Coordinates;
   contactPerson?: string;
   phone?: string;

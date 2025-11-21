@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   StyleSheet,
@@ -11,22 +11,53 @@ import {
   Text,
   Avatar,
   Surface,
-  ProgressBar,
 } from 'react-native-paper';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSelector } from 'react-redux';
 import { RootState } from '../../redux/store';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { db } from '../../services/firebase';
 
 const { width } = Dimensions.get('window');
 
 const ModernDashboardScreen = ({ navigation }: any) => {
   const [refreshing, setRefreshing] = React.useState(false);
   const { user: manager } = useSelector((state: RootState) => state.auth);
+  const [totalSalesReps, setTotalSalesReps] = useState(0);
+  const [activeRoutes, setActiveRoutes] = useState(0);
+
+  // Fetch dynamic stats
+  useEffect(() => {
+    if (!manager?.phone) return;
+
+    // Listen to all sales reps
+    const salesRepsQuery = query(collection(db, 'salesReps'));
+
+    const unsubscribeSalesReps = onSnapshot(salesRepsQuery, (snapshot) => {
+      setTotalSalesReps(snapshot.size);
+    });
+
+    // Listen to active routes assigned by this manager
+    const routesQuery = query(
+      collection(db, 'routes'),
+      where('managerId', '==', manager.phone),
+      where('status', '==', 'active')
+    );
+
+    const unsubscribeRoutes = onSnapshot(routesQuery, (snapshot) => {
+      setActiveRoutes(snapshot.size);
+    });
+
+    return () => {
+      unsubscribeSalesReps();
+      unsubscribeRoutes();
+    };
+  }, [manager?.phone]);
 
   const onRefresh = async () => {
     setRefreshing(true);
-    // TODO: Fetch latest data
+    // Data refreshes automatically via onSnapshot listeners
     setTimeout(() => setRefreshing(false), 1000);
   };
 
@@ -80,7 +111,7 @@ const ModernDashboardScreen = ({ navigation }: any) => {
               style={styles.statGradient}
             >
               <MaterialCommunityIcons name="account-group" size={32} color="#FFF" />
-              <Text style={styles.statValue}>{manager?.stats?.totalSalesReps || 0}</Text>
+              <Text style={styles.statValue}>{totalSalesReps}</Text>
               <Text style={styles.statLabel}>Sales Reps</Text>
             </LinearGradient>
           </Surface>
@@ -93,21 +124,8 @@ const ModernDashboardScreen = ({ navigation }: any) => {
               style={styles.statGradient}
             >
               <MaterialCommunityIcons name="map-marker-path" size={32} color="#FFF" />
-              <Text style={styles.statValue}>{manager?.stats?.activeRoutes || 0}</Text>
+              <Text style={styles.statValue}>{activeRoutes}</Text>
               <Text style={styles.statLabel}>Active Routes</Text>
-            </LinearGradient>
-          </Surface>
-
-          <Surface style={styles.statCard} elevation={0}>
-            <LinearGradient
-              colors={['#FF9800', '#FB8C00']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.statGradient}
-            >
-              <MaterialCommunityIcons name="check-circle" size={32} color="#FFF" />
-              <Text style={styles.statValue}>{manager?.stats?.completedRoutes || 0}</Text>
-              <Text style={styles.statLabel}>Completed</Text>
             </LinearGradient>
           </Surface>
         </View>
