@@ -18,7 +18,6 @@ import ModernProfileSetupScreen from '../screens/auth/ModernProfileSetupScreen';
 import ModernDashboardScreen from '../screens/main/ModernDashboardScreen';
 import ModernProfileScreen from '../screens/main/ModernProfileScreen';
 import SalesRepsScreen from '../screens/SalesRepsScreen';
-import LocationsScreen from '../screens/LocationsScreen';
 import RoutesScreen from '../screens/RoutesScreen';
 import AssignRouteScreen from '../screens/AssignRouteScreen';
 
@@ -59,16 +58,6 @@ const MainTabs = () => {
           tabBarLabel: 'Sales Reps',
           tabBarIcon: ({ color, size }) => (
             <MaterialCommunityIcons name="account-group" size={size} color={color} />
-          ),
-        }}
-      />
-      <Tab.Screen
-        name="Locations"
-        component={LocationsScreen}
-        options={{
-          tabBarLabel: 'Locations',
-          tabBarIcon: ({ color, size }) => (
-            <MaterialCommunityIcons name="map-marker" size={size} color={color} />
           ),
         }}
       />

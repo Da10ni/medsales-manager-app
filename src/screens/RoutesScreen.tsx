@@ -30,7 +30,6 @@ import {
   collection,
   getDocs,
   query,
-  where,
   orderBy,
   onSnapshot,
   doc,
@@ -122,14 +121,11 @@ const RoutesScreen = ({ navigation }: any) => {
     return routeTypes.find((t) => t.value === type) || routeTypes[1];
   };
 
-  // Fetch routes
+  // Fetch routes (managers can see all routes like admin)
   const fetchRoutes = async () => {
     try {
-      if (!manager?.phone) return;
-
       const q = query(
         collection(db, 'routes'),
-        where('managerId', '==', manager.phone),
         orderBy('createdAt', 'desc')
       );
       const snapshot = await getDocs(q);
@@ -146,14 +142,12 @@ const RoutesScreen = ({ navigation }: any) => {
     }
   };
 
-  // Fetch sales reps
+  // Fetch sales reps (managers can see all sales reps)
   const fetchSalesReps = async () => {
     try {
-      if (!manager?.phone) return;
-
       const q = query(
         collection(db, 'salesReps'),
-        where('managerId', '==', manager.phone)
+        orderBy('createdAt', 'desc')
       );
       const snapshot = await getDocs(q);
       const data = snapshot.docs.map((doc) => ({
@@ -167,15 +161,12 @@ const RoutesScreen = ({ navigation }: any) => {
   };
 
   useEffect(() => {
-    if (!manager?.phone) return;
-
     fetchRoutes();
     fetchSalesReps();
 
-    // Real-time listener for routes
+    // Real-time listener for routes (managers can see all routes)
     const q = query(
       collection(db, 'routes'),
-      where('managerId', '==', manager.phone),
       orderBy('createdAt', 'desc')
     );
 
@@ -189,7 +180,7 @@ const RoutesScreen = ({ navigation }: any) => {
     });
 
     return () => unsubscribe();
-  }, [manager?.phone]);
+  }, []);
 
   const handleRefresh = () => {
     setRefreshing(true);
@@ -249,40 +240,33 @@ const RoutesScreen = ({ navigation }: any) => {
     setDistributors(reordered);
   };
 
-  // Create route
+  // Create route (same as Admin App - no assignment during creation)
   const handleCreateRoute = async () => {
     if (!routeName.trim()) {
-      Alert.alert('Route Name Required', 'Please enter a route name');
-      return;
-    }
-
-    if (!selectedSalesRepId) {
-      Alert.alert('Sales Rep Required', 'Please select a sales representative');
+      Alert.alert('Name Required', 'Please enter the route name');
       return;
     }
 
     if (distributors.length === 0) {
-      Alert.alert('Stops Required', 'Please add at least one stop/distributor');
+      Alert.alert('Distributors Required', 'Please add at least one distributor/stop');
       return;
     }
 
     try {
       setCreating(true);
-      const selectedRep = salesReps.find((r) => r.id === selectedSalesRepId);
       const routeId = `route_${Date.now()}`;
 
       await setDoc(doc(db, 'routes', routeId), {
         name: routeName.trim(),
         description: routeDescription.trim(),
-        status: 'active',
-        managerId: manager?.phone || '',
-        salesRepId: selectedSalesRepId,
-        salesRepName: selectedRep?.name || '',
         distributors: distributors,
+        isActive: true,
+        createdBy: manager?.phone || '',
         createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
       });
 
-      Alert.alert('Success! <‰', `Route "${routeName}" has been created and assigned!`);
+      Alert.alert('Success! ðŸŽ‰', `Route "${routeName}" has been created successfully!`);
       setShowAddModal(false);
       resetForm();
       fetchRoutes();
@@ -318,18 +302,6 @@ const RoutesScreen = ({ navigation }: any) => {
     );
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'active':
-        return '#4CAF50';
-      case 'completed':
-        return '#2196F3';
-      case 'cancelled':
-        return '#F44336';
-      default:
-        return '#9E9E9E';
-    }
-  };
 
   if (loading) {
     return (
@@ -458,11 +430,11 @@ const RoutesScreen = ({ navigation }: any) => {
                   mode="flat"
                   style={[
                     styles.statusChip,
-                    { backgroundColor: getStatusColor(route.status) + '20' },
+                    { backgroundColor: (route.isActive ? '#4CAF50' : '#9E9E9E') + '20' },
                   ]}
-                  textStyle={{ color: getStatusColor(route.status), fontSize: 12 }}
+                  textStyle={{ color: route.isActive ? '#4CAF50' : '#9E9E9E', fontSize: 12 }}
                 >
-                  {route.status.toUpperCase()}
+                  {route.isActive ? 'ACTIVE' : 'INACTIVE'}
                 </Chip>
               </View>
             </Surface>

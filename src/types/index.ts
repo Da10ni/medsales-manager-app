@@ -36,6 +36,18 @@ export interface SalesRep {
 
 export type LocationType = 'hospital' | 'lab' | 'clinic' | 'pharmacy';
 
+export interface Distributor {
+  id: string;
+  name: string;
+  type: 'lab' | 'hospital' | 'pharmacy' | 'clinic' | 'other';
+  address: string;
+  contactPerson?: string;
+  contactPhone?: string;
+  latitude?: number;
+  longitude?: number;
+  notes?: string;
+}
+
 export interface Location {
   id: string;
   name: string;
@@ -76,18 +88,26 @@ export type RouteStatus = 'assigned' | 'in-progress' | 'completed' | 'cancelled'
 
 export interface Route {
   id: string;
-  routeName: string;
-  assignedTo: string; // salesRepId
-  assignedBy: string; // managerId
+  name: string; // Changed from routeName to match Admin App
+  description?: string;
+  distributors: Distributor[]; // Array of distributors/stops (matches Admin App)
+  isActive: boolean; // Changed from status to match Admin App
+  createdBy: string; // Phone number of creator (admin/manager)
+  createdAt: Date;
+  updatedAt: Date;
+  // Optional assignment fields (added separately via AssignRouteScreen)
+  assignedSalesRepId?: string; // Which sales rep is assigned (matches Admin App)
+  assignedSalesRepName?: string; // Name of assigned sales rep (matches Admin App)
+  // Deprecated fields (kept for backward compatibility)
+  assignedTo?: string; // Old field name
+  assignedBy?: string; // Old field name
   salesRep?: SalesRep; // populated data
-  date: Date;
-  status: RouteStatus;
-  locations: RouteLocation[];
-  totalDistance: string;
-  estimatedTotalTime: string;
+  date?: Date; // Assignment date
+  locations?: RouteLocation[];
+  totalDistance?: string;
+  estimatedTotalTime?: string;
   actualStartTime?: Date;
   actualCompletionTime?: Date;
-  createdAt: Date;
 }
 
 export interface RouteTemplate {
