@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   Alert,
   Platform,
+  Modal,
 } from 'react-native';
 import {
   Text,
@@ -15,6 +16,7 @@ import {
   ActivityIndicator,
   Checkbox,
   Divider,
+  TextInput,
 } from 'react-native-paper';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -54,11 +56,27 @@ interface SalesRep {
   phone: string;
 }
 
+interface StopDetails {
+  stopNumber: number;
+  activity: string;
+  customInstructions: string;
+}
+
 interface Assignment {
   salesRepId: string;
   salesRepName: string;
   stops: number[]; // Array of stop numbers (1-based)
+  stopDetails: StopDetails[]; // Details for each stop
 }
+
+const activityTypes = [
+  { value: 'visit', label: 'Visit', icon: 'map-marker-check', color: '#4CAF50' },
+  { value: 'follow-up', label: 'Follow Up', icon: 'phone-check', color: '#2196F3' },
+  { value: 'take-order', label: 'Take Order', icon: 'cart-plus', color: '#FF9800' },
+  { value: 'stock-check', label: 'Stock Check', icon: 'package-variant', color: '#9C27B0' },
+  { value: 'promote', label: 'Promote', icon: 'bullhorn', color: '#F44336' },
+  { value: 'delivery', label: 'Delivery', icon: 'truck-delivery', color: '#00BCD4' },
+];
 
 const AssignRouteScreen = ({ navigation }: any) => {
   const { user: manager } = useSelector((state: RootState) => state.auth);
@@ -78,6 +96,10 @@ const AssignRouteScreen = ({ navigation }: any) => {
   // Step 3: Sales Rep & Stop Assignment
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [selectedSalesReps, setSelectedSalesReps] = useState<string[]>([]);
+
+  // Activity Dropdown Modal
+  const [showActivityModal, setShowActivityModal] = useState(false);
+  const [currentStop, setCurrentStop] = useState<{ repId: string; stopNumber: number } | null>(null);
 
   // Fetch routes and sales reps
   useEffect(() => {
@@ -123,11 +145,17 @@ const AssignRouteScreen = ({ navigation }: any) => {
     // Initialize all stops as selected for the first sales rep (if any selected)
     if (selectedSalesReps.length > 0) {
       const allStops = route.distributors.map((_, index) => index + 1);
+      const stopDetails = allStops.map((stopNumber) => ({
+        stopNumber,
+        activity: 'visit',
+        customInstructions: '',
+      }));
       setAssignments([
         {
           salesRepId: selectedSalesReps[0],
           salesRepName: salesReps.find((r) => r.id === selectedSalesReps[0])?.name || '',
           stops: allStops,
+          stopDetails,
         },
       ]);
     }
@@ -146,11 +174,17 @@ const AssignRouteScreen = ({ navigation }: any) => {
         // If this is the first rep and a route is selected, assign all stops
         if (selectedSalesReps.length === 0 && selectedRoute) {
           const allStops = selectedRoute.distributors.map((_, index) => index + 1);
+          const stopDetails = allStops.map((stopNumber) => ({
+            stopNumber,
+            activity: 'visit',
+            customInstructions: '',
+          }));
           setAssignments([
             {
               salesRepId: repId,
               salesRepName: rep.name,
               stops: allStops,
+              stopDetails,
             },
           ]);
         } else {
@@ -161,6 +195,7 @@ const AssignRouteScreen = ({ navigation }: any) => {
               salesRepId: repId,
               salesRepName: rep.name,
               stops: [],
+              stopDetails: [],
             },
           ]);
         }
@@ -173,16 +208,25 @@ const AssignRouteScreen = ({ navigation }: any) => {
       assignments.map((assignment) => {
         if (assignment.salesRepId === repId) {
           if (assignment.stops.includes(stopNumber)) {
-            // Remove stop
+            // Remove stop and its details
             return {
               ...assignment,
               stops: assignment.stops.filter((s) => s !== stopNumber),
+              stopDetails: assignment.stopDetails.filter((d) => d.stopNumber !== stopNumber),
             };
           } else {
-            // Add stop and sort
+            // Add stop with default details
             return {
               ...assignment,
               stops: [...assignment.stops, stopNumber].sort((a, b) => a - b),
+              stopDetails: [
+                ...assignment.stopDetails,
+                {
+                  stopNumber,
+                  activity: 'visit',
+                  customInstructions: '',
+                },
+              ],
             };
           }
         }
@@ -194,10 +238,15 @@ const AssignRouteScreen = ({ navigation }: any) => {
   const handleSelectAllStops = (repId: string) => {
     if (!selectedRoute) return;
     const allStops = selectedRoute.distributors.map((_, index) => index + 1);
+    const stopDetails = allStops.map((stopNumber) => ({
+      stopNumber,
+      activity: 'visit',
+      customInstructions: '',
+    }));
     setAssignments(
       assignments.map((assignment) => {
         if (assignment.salesRepId === repId) {
-          return { ...assignment, stops: allStops };
+          return { ...assignment, stops: allStops, stopDetails };
         }
         return assignment;
       })
@@ -208,11 +257,62 @@ const AssignRouteScreen = ({ navigation }: any) => {
     setAssignments(
       assignments.map((assignment) => {
         if (assignment.salesRepId === repId) {
-          return { ...assignment, stops: [] };
+          return { ...assignment, stops: [], stopDetails: [] };
         }
         return assignment;
       })
     );
+  };
+
+  const handleActivitySelect = (activity: string) => {
+    if (!currentStop) return;
+
+    setAssignments(
+      assignments.map((assignment) => {
+        if (assignment.salesRepId === currentStop.repId) {
+          return {
+            ...assignment,
+            stopDetails: assignment.stopDetails.map((detail) => {
+              if (detail.stopNumber === currentStop.stopNumber) {
+                return { ...detail, activity };
+              }
+              return detail;
+            }),
+          };
+        }
+        return assignment;
+      })
+    );
+    setShowActivityModal(false);
+    setCurrentStop(null);
+  };
+
+  const handleInstructionsChange = (repId: string, stopNumber: number, instructions: string) => {
+    setAssignments(
+      assignments.map((assignment) => {
+        if (assignment.salesRepId === repId) {
+          return {
+            ...assignment,
+            stopDetails: assignment.stopDetails.map((detail) => {
+              if (detail.stopNumber === stopNumber) {
+                return { ...detail, customInstructions: instructions };
+              }
+              return detail;
+            }),
+          };
+        }
+        return assignment;
+      })
+    );
+  };
+
+  const getStopDetails = (repId: string, stopNumber: number): StopDetails | undefined => {
+    const assignment = assignments.find((a) => a.salesRepId === repId);
+    return assignment?.stopDetails.find((d) => d.stopNumber === stopNumber);
+  };
+
+  const getActivityInfo = (activityValue: string) => {
+    return activityTypes.find((a) => a.value === activityValue) || activityTypes[0];
   };
 
   const validateAssignments = () => {
@@ -280,9 +380,13 @@ const AssignRouteScreen = ({ navigation }: any) => {
         const assignmentId = `assignment_${Date.now()}_${assignment.salesRepId}`;
         const assignedStops = assignment.stops.map((stopNumber) => {
           const dist = selectedRoute!.distributors[stopNumber - 1];
+          const details = assignment.stopDetails.find((d) => d.stopNumber === stopNumber);
           return {
             ...dist,
             stopNumber,
+            activity: details?.activity || 'visit',
+            customInstructions: details?.customInstructions || '',
+            status: 'pending',
           };
         });
 
@@ -300,7 +404,7 @@ const AssignRouteScreen = ({ navigation }: any) => {
       }
 
       Alert.alert(
-        'Success! <‰',
+        'Success!',
         `Route "${selectedRoute!.name}" has been assigned to ${assignments.length} sales rep${
           assignments.length > 1 ? 's' : ''
         } for ${selectedDate.toLocaleDateString()}`,
@@ -458,8 +562,8 @@ const AssignRouteScreen = ({ navigation }: any) => {
             {/* Stop Assignment for each selected rep */}
             {assignments.length > 0 && (
               <>
-                <Text style={styles.subsectionTitle}>Assign Stops</Text>
-                {assignments.map((assignment, index) => (
+                <Text style={styles.subsectionTitle}>Assign Stops & Activities</Text>
+                {assignments.map((assignment) => (
                   <View key={assignment.salesRepId} style={styles.assignmentCard}>
                     <View style={styles.assignmentHeader}>
                       <Text style={styles.assignmentRepName}>{assignment.salesRepName}</Text>
@@ -483,30 +587,71 @@ const AssignRouteScreen = ({ navigation }: any) => {
                       </View>
                     </View>
 
-                    <View style={styles.stopsGrid}>
+                    {/* Stop List with Activity & Instructions */}
+                    <View style={styles.stopsList}>
                       {selectedRoute.distributors.map((dist, idx) => {
                         const stopNumber = idx + 1;
                         const isSelected = assignment.stops.includes(stopNumber);
+                        const stopDetails = getStopDetails(assignment.salesRepId, stopNumber);
+                        const activityInfo = stopDetails ? getActivityInfo(stopDetails.activity) : activityTypes[0];
+
                         return (
-                          <TouchableOpacity
-                            key={dist.id}
-                            style={[
-                              styles.stopChip,
-                              isSelected && styles.stopChipSelected,
-                            ]}
-                            onPress={() =>
-                              handleStopToggle(assignment.salesRepId, stopNumber)
-                            }
-                          >
-                            <Text
-                              style={[
-                                styles.stopChipText,
-                                isSelected && styles.stopChipTextSelected,
-                              ]}
-                            >
-                              {stopNumber}
-                            </Text>
-                          </TouchableOpacity>
+                          <View key={dist.id} style={styles.stopItemContainer}>
+                            {/* Stop Header with Checkbox */}
+                            <View style={styles.stopHeader}>
+                              <Checkbox
+                                status={isSelected ? 'checked' : 'unchecked'}
+                                onPress={() => handleStopToggle(assignment.salesRepId, stopNumber)}
+                                color="#2196F3"
+                              />
+                              <View style={styles.stopHeaderInfo}>
+                                <Text style={styles.stopNumber}>Stop {stopNumber}</Text>
+                                <Text style={styles.stopName}>{dist.name}</Text>
+                                <Text style={styles.stopAddress} numberOfLines={1}>
+                                  {dist.address}
+                                </Text>
+                              </View>
+                            </View>
+
+                            {/* Activity & Instructions (only if selected) */}
+                            {isSelected && (
+                              <View style={styles.stopDetails}>
+                                {/* Activity Dropdown */}
+                                <Text style={styles.fieldLabel}>Activity Type</Text>
+                                <TouchableOpacity
+                                  style={styles.activitySelector}
+                                  onPress={() => {
+                                    setCurrentStop({ repId: assignment.salesRepId, stopNumber });
+                                    setShowActivityModal(true);
+                                  }}
+                                >
+                                  <MaterialCommunityIcons
+                                    name={activityInfo.icon as any}
+                                    size={20}
+                                    color={activityInfo.color}
+                                  />
+                                  <Text style={styles.activityText}>{activityInfo.label}</Text>
+                                  <MaterialCommunityIcons name="chevron-down" size={20} color="#666" />
+                                </TouchableOpacity>
+
+                                {/* Custom Instructions */}
+                                <Text style={styles.fieldLabel}>Custom Instructions</Text>
+                                <TextInput
+                                  mode="outlined"
+                                  placeholder="Enter custom instructions for this stop (optional)"
+                                  value={stopDetails?.customInstructions || ''}
+                                  onChangeText={(text) =>
+                                    handleInstructionsChange(assignment.salesRepId, stopNumber, text)
+                                  }
+                                  multiline
+                                  numberOfLines={2}
+                                  style={styles.instructionsInput}
+                                  outlineColor="#E0E0E0"
+                                  activeOutlineColor="#2196F3"
+                                />
+                              </View>
+                            )}
+                          </View>
                         );
                       })}
                     </View>
@@ -515,8 +660,7 @@ const AssignRouteScreen = ({ navigation }: any) => {
                       <View style={styles.selectedStopsInfo}>
                         <MaterialCommunityIcons name="check-circle" size={16} color="#4CAF50" />
                         <Text style={styles.selectedStopsText}>
-                          {assignment.stops.length} stop{assignment.stops.length > 1 ? 's' : ''}{' '}
-                          selected: {assignment.stops.join(', ')}
+                          {assignment.stops.length} stop{assignment.stops.length > 1 ? 's' : ''} assigned
                         </Text>
                       </View>
                     )}
@@ -546,6 +690,47 @@ const AssignRouteScreen = ({ navigation }: any) => {
           </Button>
         </View>
       )}
+
+      {/* Activity Selection Modal */}
+      <Modal
+        visible={showActivityModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowActivityModal(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowActivityModal(false)}
+        >
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Select Activity Type</Text>
+            <Divider style={styles.modalDivider} />
+            {activityTypes.map((activity) => (
+              <TouchableOpacity
+                key={activity.value}
+                style={styles.activityOption}
+                onPress={() => handleActivitySelect(activity.value)}
+              >
+                <MaterialCommunityIcons
+                  name={activity.icon as any}
+                  size={24}
+                  color={activity.color}
+                />
+                <Text style={styles.activityOptionText}>{activity.label}</Text>
+                <MaterialCommunityIcons name="chevron-right" size={20} color="#999" />
+              </TouchableOpacity>
+            ))}
+            <Button
+              mode="text"
+              onPress={() => setShowActivityModal(false)}
+              style={styles.modalCancelButton}
+            >
+              Cancel
+            </Button>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 };
@@ -717,7 +902,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 16,
   },
   assignmentRepName: {
     fontSize: 16,
@@ -728,32 +913,74 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 8,
   },
-  stopsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
+  stopsList: {
+    gap: 12,
   },
-  stopChip: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    borderWidth: 2,
+  stopItemContainer: {
+    borderWidth: 1,
     borderColor: '#E0E0E0',
-    alignItems: 'center',
-    justifyContent: 'center',
+    borderRadius: 12,
+    padding: 12,
     backgroundColor: '#FFF',
   },
-  stopChipSelected: {
-    borderColor: '#2196F3',
-    backgroundColor: '#2196F3',
+  stopHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
-  stopChipText: {
-    fontSize: 16,
-    fontWeight: 'bold',
+  stopHeaderInfo: {
+    flex: 1,
+    marginLeft: 8,
+  },
+  stopNumber: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#2196F3',
+    marginBottom: 2,
+  },
+  stopName: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 2,
+  },
+  stopAddress: {
+    fontSize: 12,
     color: '#666',
   },
-  stopChipTextSelected: {
-    color: '#FFF',
+  stopDetails: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#F0F0F0',
+  },
+  fieldLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 8,
+    marginTop: 8,
+  },
+  activitySelector: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    borderRadius: 8,
+    backgroundColor: '#FFF',
+    marginBottom: 8,
+  },
+  activityText: {
+    flex: 1,
+    marginLeft: 12,
+    fontSize: 15,
+    color: '#333',
+    fontWeight: '500',
+  },
+  instructionsInput: {
+    backgroundColor: '#FFF',
+    fontSize: 14,
+    marginBottom: 8,
   },
   selectedStopsInfo: {
     flexDirection: 'row',
@@ -784,6 +1011,45 @@ const styles = StyleSheet.create({
   assignButton: {
     borderRadius: 12,
     paddingVertical: 6,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: '#FFF',
+    borderRadius: 16,
+    padding: 20,
+    width: '100%',
+    maxWidth: 400,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 8,
+  },
+  modalDivider: {
+    marginBottom: 16,
+  },
+  activityOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+  },
+  activityOptionText: {
+    flex: 1,
+    marginLeft: 16,
+    fontSize: 16,
+    color: '#333',
+  },
+  modalCancelButton: {
+    marginTop: 12,
   },
 });
 
