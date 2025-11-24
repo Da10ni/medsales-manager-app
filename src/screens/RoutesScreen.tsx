@@ -10,6 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   Text,
   Surface,
@@ -18,9 +19,6 @@ import {
   TextInput,
   Button,
   ActivityIndicator,
-  Portal,
-  Menu,
-  Divider,
 } from 'react-native-paper';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -77,17 +75,16 @@ const RoutesScreen = ({ navigation }: any) => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
-  const [showAddDistributorModal, setShowAddDistributorModal] = useState(false);
+  const [showInlineDistForm, setShowInlineDistForm] = useState(false);
+  const [showInlineTypePicker, setShowInlineTypePicker] = useState(false);
+  const [showInlineRouteTypePicker, setShowInlineRouteTypePicker] = useState(false);
+  const [addressError, setAddressError] = useState('');
 
   // Create Route Form
   const [routeName, setRouteName] = useState('');
   const [routeDescription, setRouteDescription] = useState('');
-  const [selectedSalesRepId, setSelectedSalesRepId] = useState('');
   const [distributors, setDistributors] = useState<Distributor[]>([]);
   const [creating, setCreating] = useState(false);
-
-  // Sales Rep Selection Menu
-  const [showSalesRepMenu, setShowSalesRepMenu] = useState(false);
 
   // Add Distributor Form
   const [distName, setDistName] = useState('');
@@ -96,8 +93,6 @@ const RoutesScreen = ({ navigation }: any) => {
   const [distRouteType, setDistRouteType] = useState<'follow-up' | 'visit' | 'stock-check' | 'promote'>('visit');
   const [distContact, setDistContact] = useState('');
   const [distPhone, setDistPhone] = useState('');
-  const [showTypeMenu, setShowTypeMenu] = useState(false);
-  const [showRouteTypeMenu, setShowRouteTypeMenu] = useState(false);
 
   const distributorTypes = [
     { value: 'hospital', label: 'Hospital', icon: 'hospital-building', color: '#F44336' },
@@ -119,6 +114,12 @@ const RoutesScreen = ({ navigation }: any) => {
 
   const getRouteTypeInfo = (type: string) => {
     return routeTypes.find((t) => t.value === type) || routeTypes[1];
+  };
+
+  // Google Maps link validation - FIXED FOR ALL FORMATS
+  const isGoogleMapsLink = (url: string) => {
+    const pattern = /^(https?:\/\/)?(www\.)?(google\.com\/maps|maps\.google\.com|goo\.gl\/maps|maps\.app\.goo\.gl).+$/;
+    return pattern.test(url);
   };
 
   // Fetch routes (managers can see all routes like admin)
@@ -182,6 +183,19 @@ const RoutesScreen = ({ navigation }: any) => {
     return () => unsubscribe();
   }, []);
 
+  // Close all modals/pickers when screen loses focus
+  useFocusEffect(
+    React.useCallback(() => {
+      return () => {
+        setShowAddModal(false);
+        setShowInlineDistForm(false);
+        setShowInlineTypePicker(false);
+        setShowInlineRouteTypePicker(false);
+        setAddressError('');
+      };
+    }, [])
+  );
+
   const handleRefresh = () => {
     setRefreshing(true);
     fetchRoutes();
@@ -192,7 +206,6 @@ const RoutesScreen = ({ navigation }: any) => {
   const resetForm = () => {
     setRouteName('');
     setRouteDescription('');
-    setSelectedSalesRepId('');
     setDistributors([]);
   };
 
@@ -204,14 +217,36 @@ const RoutesScreen = ({ navigation }: any) => {
     setDistRouteType('visit');
     setDistContact('');
     setDistPhone('');
+    setAddressError('');
+    setShowInlineTypePicker(false);
+    setShowInlineRouteTypePicker(false);
   };
 
-  // Add distributor to route
+  // Add distributor to route - WITH UPDATED VALIDATION
   const handleAddDistributor = () => {
-    if (!distName.trim() || !distAddress.trim()) {
-      Alert.alert('Missing Info', 'Please enter distributor name and address');
+    if (!distName.trim()) {
+      Alert.alert('Missing Info', 'Please enter stop name');
       return;
     }
+
+    if (!distAddress.trim()) {
+      setAddressError('Address is required');
+      Alert.alert('Missing Info', 'Please enter Google Maps link');
+      return;
+    }
+
+    // Validate Google Maps link - UPDATED FOR NEW FORMATS
+    if (!isGoogleMapsLink(distAddress.trim())) {
+      setAddressError('Please enter a valid Google Maps link');
+      Alert.alert(
+        'Invalid Address',
+        'Please enter a valid Google Maps link.\n\nAccepted formats:\n• https://www.google.com/maps/...\n• https://maps.google.com/...\n• https://goo.gl/maps/...\n• https://maps.app.goo.gl/...'
+      );
+      return;
+    }
+
+    // Clear error if validation passes
+    setAddressError('');
 
     const newDistributor: Distributor = {
       id: Date.now().toString(),
@@ -225,7 +260,7 @@ const RoutesScreen = ({ navigation }: any) => {
     };
 
     setDistributors([...distributors, newDistributor]);
-    setShowAddDistributorModal(false);
+    setShowInlineDistForm(false);
     resetDistributorForm();
   };
 
@@ -240,7 +275,7 @@ const RoutesScreen = ({ navigation }: any) => {
     setDistributors(reordered);
   };
 
-  // Create route (same as Admin App - no assignment during creation)
+  // Create route (without sales rep assignment)
   const handleCreateRoute = async () => {
     if (!routeName.trim()) {
       Alert.alert('Name Required', 'Please enter the route name');
@@ -302,7 +337,6 @@ const RoutesScreen = ({ navigation }: any) => {
     );
   };
 
-
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -325,7 +359,7 @@ const RoutesScreen = ({ navigation }: any) => {
           <View style={styles.headerTop}>
             <View>
               <Text style={styles.headerTitle}>Routes</Text>
-              <Text style={styles.headerSubtitle}>Manage and assign routes</Text>
+              <Text style={styles.headerSubtitle}>Manage and create routes</Text>
             </View>
             <View style={styles.countBadge}>
               <Text style={styles.countBadgeText}>{routes.length}</Text>
@@ -367,10 +401,6 @@ const RoutesScreen = ({ navigation }: any) => {
               </View>
 
               <View style={styles.routeInfo}>
-                <View style={styles.infoRow}>
-                  <MaterialCommunityIcons name="account" size={16} color="#666" />
-                  <Text style={styles.infoText}>{route.salesRepName}</Text>
-                </View>
                 <View style={styles.infoRow}>
                   <MaterialCommunityIcons name="map-marker" size={16} color="#666" />
                   <Text style={styles.infoText}>{route.distributors.length} stops</Text>
@@ -454,11 +484,19 @@ const RoutesScreen = ({ navigation }: any) => {
       />
 
       {/* Create Route Modal */}
-      <Modal visible={showAddModal} animationType="slide" transparent={false}>
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={{ flex: 1 }}
-        >
+      <Modal
+        visible={showAddModal}
+        animationType="slide"
+        transparent={false}
+        onRequestClose={() => {
+          setShowAddModal(false);
+          setShowInlineDistForm(false);
+        }}
+      >
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={{ flex: 1 }}
+          >
           <View style={{ flex: 1 }}>
             <LinearGradient
               colors={['#2196F3', '#1976D2']}
@@ -502,45 +540,19 @@ const RoutesScreen = ({ navigation }: any) => {
                 numberOfLines={2}
               />
 
-              {/* Sales Rep Selection */}
-              <Text style={styles.inputLabel}>Assign to Sales Rep *</Text>
-              <Menu
-                visible={showSalesRepMenu}
-                onDismiss={() => setShowSalesRepMenu(false)}
-                anchor={
-                  <TouchableOpacity
-                    style={styles.salesRepSelector}
-                    onPress={() => setShowSalesRepMenu(true)}
-                  >
-                    <MaterialCommunityIcons name="account" size={20} color="#666" />
-                    <Text style={styles.salesRepSelectorText}>
-                      {selectedSalesRepId
-                        ? salesReps.find((r) => r.id === selectedSalesRepId)?.name
-                        : 'Select Sales Rep'}
-                    </Text>
-                    <MaterialCommunityIcons name="chevron-down" size={20} color="#666" />
-                  </TouchableOpacity>
-                }
-              >
-                {salesReps.map((rep) => (
-                  <Menu.Item
-                    key={rep.id}
-                    onPress={() => {
-                      setSelectedSalesRepId(rep.id);
-                      setShowSalesRepMenu(false);
-                    }}
-                    title={rep.name}
-                    leadingIcon="account"
-                  />
-                ))}
-              </Menu>
-
               {/* Distributors */}
               <View style={styles.distributorsHeader}>
                 <Text style={styles.inputLabel}>Stops ({distributors.length})</Text>
                 <Button
                   mode="contained"
-                  onPress={() => setShowAddDistributorModal(true)}
+                  onPress={() => {
+                    console.log('🟢 Add Stop button pressed - showing inline form');
+                    // Close any open pickers
+                    setShowInlineTypePicker(false);
+                    setShowInlineRouteTypePicker(false);
+                    // Show inline form instead of modal (iOS fix)
+                    setShowInlineDistForm(true);
+                  }}
                   style={styles.addDistButton}
                   buttonColor="#2196F3"
                   icon="plus"
@@ -549,6 +561,225 @@ const RoutesScreen = ({ navigation }: any) => {
                   Add Stop
                 </Button>
               </View>
+
+              {/* Inline Add Stop Form (iOS Fix - no nested modals) */}
+              {showInlineDistForm && (
+                <Surface style={styles.inlineDistForm} elevation={2}>
+                  <View style={styles.inlineDistFormHeader}>
+                    <Text style={styles.inlineDistFormTitle}>Add Stop</Text>
+                    <TouchableOpacity
+                      onPress={() => {
+                        setShowInlineDistForm(false);
+                        setShowInlineTypePicker(false);
+                        setShowInlineRouteTypePicker(false);
+                        setAddressError('');
+                        resetDistributorForm();
+                      }}
+                    >
+                      <MaterialCommunityIcons name="close" size={24} color="#666" />
+                    </TouchableOpacity>
+                  </View>
+
+                  <Text style={styles.inputLabel}>Name *</Text>
+                  <TextInput
+                    mode="outlined"
+                    placeholder="e.g., City Hospital"
+                    value={distName}
+                    onChangeText={setDistName}
+                    style={styles.textInput}
+                    outlineColor="#E0E0E0"
+                    activeOutlineColor="#2196F3"
+                  />
+
+                  <Text style={styles.inputLabel}>Type *</Text>
+                  <TouchableOpacity
+                    style={styles.typeSelector}
+                    onPress={() => {
+                      setShowInlineTypePicker(!showInlineTypePicker);
+                      setShowInlineRouteTypePicker(false);
+                    }}
+                  >
+                    <MaterialCommunityIcons
+                      name={getTypeInfo(distType).icon as any}
+                      size={20}
+                      color={getTypeInfo(distType).color}
+                    />
+                    <Text style={styles.typeSelectorText}>{getTypeInfo(distType).label}</Text>
+                    <MaterialCommunityIcons
+                      name={showInlineTypePicker ? "chevron-up" : "chevron-down"}
+                      size={20}
+                      color="#666"
+                    />
+                  </TouchableOpacity>
+
+                  {/* Inline Type Picker */}
+                  {showInlineTypePicker && (
+                    <View style={styles.inlinePickerContainer}>
+                      {distributorTypes.map((type) => (
+                        <TouchableOpacity
+                          key={type.value}
+                          style={[
+                            styles.inlinePickerItem,
+                            distType === type.value && styles.inlinePickerItemSelected,
+                          ]}
+                          onPress={() => {
+                            setDistType(type.value as any);
+                            setShowInlineTypePicker(false);
+                          }}
+                        >
+                          <MaterialCommunityIcons
+                            name={type.icon as any}
+                            size={20}
+                            color={distType === type.value ? type.color : '#666'}
+                          />
+                          <Text
+                            style={[
+                              styles.inlinePickerItemText,
+                              distType === type.value && { color: type.color, fontWeight: '600' },
+                            ]}
+                          >
+                            {type.label}
+                          </Text>
+                          {distType === type.value && (
+                            <MaterialCommunityIcons name="check" size={20} color={type.color} />
+                          )}
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
+
+                  <Text style={styles.inputLabel}>Route Type *</Text>
+                  <TouchableOpacity
+                    style={styles.typeSelector}
+                    onPress={() => {
+                      setShowInlineRouteTypePicker(!showInlineRouteTypePicker);
+                      setShowInlineTypePicker(false);
+                    }}
+                  >
+                    <MaterialCommunityIcons
+                      name={getRouteTypeInfo(distRouteType).icon as any}
+                      size={20}
+                      color={getRouteTypeInfo(distRouteType).color}
+                    />
+                    <Text style={styles.typeSelectorText}>
+                      {getRouteTypeInfo(distRouteType).label}
+                    </Text>
+                    <MaterialCommunityIcons
+                      name={showInlineRouteTypePicker ? "chevron-up" : "chevron-down"}
+                      size={20}
+                      color="#666"
+                    />
+                  </TouchableOpacity>
+
+                  {/* Inline Route Type Picker */}
+                  {showInlineRouteTypePicker && (
+                    <View style={styles.inlinePickerContainer}>
+                      {routeTypes.map((type) => (
+                        <TouchableOpacity
+                          key={type.value}
+                          style={[
+                            styles.inlinePickerItem,
+                            distRouteType === type.value && styles.inlinePickerItemSelected,
+                          ]}
+                          onPress={() => {
+                            setDistRouteType(type.value as any);
+                            setShowInlineRouteTypePicker(false);
+                          }}
+                        >
+                          <MaterialCommunityIcons
+                            name={type.icon as any}
+                            size={20}
+                            color={distRouteType === type.value ? type.color : '#666'}
+                          />
+                          <Text
+                            style={[
+                              styles.inlinePickerItemText,
+                              distRouteType === type.value && { color: type.color, fontWeight: '600' },
+                            ]}
+                          >
+                            {type.label}
+                          </Text>
+                          {distRouteType === type.value && (
+                            <MaterialCommunityIcons name="check" size={20} color={type.color} />
+                          )}
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
+
+                  <Text style={styles.inputLabel}>Google Maps Link *</Text>
+                  <TextInput
+                    mode="outlined"
+                    placeholder="https://maps.app.goo.gl/..."
+                    value={distAddress}
+                    onChangeText={(text) => {
+                      setDistAddress(text);
+                      setAddressError('');
+                    }}
+                    style={styles.textInput}
+                    outlineColor={addressError ? '#F44336' : '#E0E0E0'}
+                    activeOutlineColor={addressError ? '#F44336' : '#2196F3'}
+                    error={!!addressError}
+                    multiline
+                    numberOfLines={2}
+                  />
+                  {addressError ? (
+                    <Text style={styles.errorText}>{addressError}</Text>
+                  ) : (
+                    <Text style={styles.helperText}>
+                      Supported formats: google.com/maps, maps.google.com, goo.gl/maps, maps.app.goo.gl
+                    </Text>
+                  )}
+
+                  <Text style={styles.inputLabel}>Contact Person (Optional)</Text>
+                  <TextInput
+                    mode="outlined"
+                    placeholder="Contact name"
+                    value={distContact}
+                    onChangeText={setDistContact}
+                    style={styles.textInput}
+                    outlineColor="#E0E0E0"
+                    activeOutlineColor="#2196F3"
+                  />
+
+                  <Text style={styles.inputLabel}>Contact Phone (Optional)</Text>
+                  <TextInput
+                    mode="outlined"
+                    placeholder="Phone number"
+                    value={distPhone}
+                    onChangeText={setDistPhone}
+                    keyboardType="phone-pad"
+                    style={styles.textInput}
+                    outlineColor="#E0E0E0"
+                    activeOutlineColor="#2196F3"
+                  />
+
+                  <View style={styles.inlineDistFormButtons}>
+                    <Button
+                      mode="contained"
+                      onPress={() => {
+                        handleAddDistributor();
+                        setShowInlineDistForm(false);
+                      }}
+                      style={styles.distAddBtn}
+                      buttonColor="#2196F3"
+                    >
+                      Add Stop
+                    </Button>
+                    <Button
+                      mode="outlined"
+                      onPress={() => {
+                        setShowInlineDistForm(false);
+                        resetDistributorForm();
+                      }}
+                      style={styles.distCancelBtn}
+                      textColor="#666"
+                    >
+                      Cancel
+                    </Button>
+                  </View>
+                </Surface>
+              )}
 
               {/* Distributors List */}
               {distributors.map((dist, index) => (
@@ -631,161 +862,6 @@ const RoutesScreen = ({ navigation }: any) => {
           </View>
         </KeyboardAvoidingView>
       </Modal>
-
-      {/* Add Distributor Modal - Wrapped in Portal */}
-      <Portal>
-        <Modal
-          visible={showAddDistributorModal}
-          animationType="fade"
-          transparent={true}
-          onRequestClose={() => setShowAddDistributorModal(false)}
-        >
-          <View style={styles.distModalOverlay}>
-            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-              <Surface style={styles.distModalContent} elevation={4}>
-                <Text style={styles.distModalTitle}>Add Stop</Text>
-
-                <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-                  <Text style={styles.inputLabel}>Name *</Text>
-                  <TextInput
-                    mode="outlined"
-                    placeholder="e.g., City Hospital"
-                    value={distName}
-                    onChangeText={setDistName}
-                    style={styles.textInput}
-                    outlineColor="#E0E0E0"
-                    activeOutlineColor="#2196F3"
-                  />
-
-                  <Text style={styles.inputLabel}>Type *</Text>
-                  <Menu
-                    visible={showTypeMenu}
-                    onDismiss={() => setShowTypeMenu(false)}
-                    anchor={
-                      <TouchableOpacity
-                        style={styles.typeSelector}
-                        onPress={() => setShowTypeMenu(true)}
-                      >
-                        <MaterialCommunityIcons
-                          name={getTypeInfo(distType).icon as any}
-                          size={20}
-                          color={getTypeInfo(distType).color}
-                        />
-                        <Text style={styles.typeSelectorText}>{getTypeInfo(distType).label}</Text>
-                        <MaterialCommunityIcons name="chevron-down" size={20} color="#666" />
-                      </TouchableOpacity>
-                    }
-                  >
-                    {distributorTypes.map((type) => (
-                      <Menu.Item
-                        key={type.value}
-                        onPress={() => {
-                          setDistType(type.value as any);
-                          setShowTypeMenu(false);
-                        }}
-                        title={type.label}
-                        leadingIcon={type.icon}
-                      />
-                    ))}
-                  </Menu>
-
-                  <Text style={styles.inputLabel}>Route Type *</Text>
-                  <Menu
-                    visible={showRouteTypeMenu}
-                    onDismiss={() => setShowRouteTypeMenu(false)}
-                    anchor={
-                      <TouchableOpacity
-                        style={styles.typeSelector}
-                        onPress={() => setShowRouteTypeMenu(true)}
-                      >
-                        <MaterialCommunityIcons
-                          name={getRouteTypeInfo(distRouteType).icon as any}
-                          size={20}
-                          color={getRouteTypeInfo(distRouteType).color}
-                        />
-                        <Text style={styles.typeSelectorText}>
-                          {getRouteTypeInfo(distRouteType).label}
-                        </Text>
-                        <MaterialCommunityIcons name="chevron-down" size={20} color="#666" />
-                      </TouchableOpacity>
-                    }
-                  >
-                    {routeTypes.map((type) => (
-                      <Menu.Item
-                        key={type.value}
-                        onPress={() => {
-                          setDistRouteType(type.value as any);
-                          setShowRouteTypeMenu(false);
-                        }}
-                        title={type.label}
-                        leadingIcon={type.icon}
-                      />
-                    ))}
-                  </Menu>
-
-                  <Text style={styles.inputLabel}>Address *</Text>
-                  <TextInput
-                    mode="outlined"
-                    placeholder="Full address"
-                    value={distAddress}
-                    onChangeText={setDistAddress}
-                    style={styles.textInput}
-                    outlineColor="#E0E0E0"
-                    activeOutlineColor="#2196F3"
-                    multiline
-                    numberOfLines={2}
-                  />
-
-                  <Text style={styles.inputLabel}>Contact Person (Optional)</Text>
-                  <TextInput
-                    mode="outlined"
-                    placeholder="Contact name"
-                    value={distContact}
-                    onChangeText={setDistContact}
-                    style={styles.textInput}
-                    outlineColor="#E0E0E0"
-                    activeOutlineColor="#2196F3"
-                  />
-
-                  <Text style={styles.inputLabel}>Contact Phone (Optional)</Text>
-                  <TextInput
-                    mode="outlined"
-                    placeholder="Phone number"
-                    value={distPhone}
-                    onChangeText={setDistPhone}
-                    keyboardType="phone-pad"
-                    style={styles.textInput}
-                    outlineColor="#E0E0E0"
-                    activeOutlineColor="#2196F3"
-                  />
-
-                  <View style={styles.distModalButtons}>
-                    <Button
-                      mode="contained"
-                      onPress={handleAddDistributor}
-                      style={styles.distAddBtn}
-                      buttonColor="#2196F3"
-                    >
-                      Add Stop
-                    </Button>
-                    <Button
-                      mode="outlined"
-                      onPress={() => {
-                        setShowAddDistributorModal(false);
-                        resetDistributorForm();
-                      }}
-                      style={styles.distCancelBtn}
-                      textColor="#666"
-                    >
-                      Cancel
-                    </Button>
-                  </View>
-                </ScrollView>
-              </Surface>
-            </View>
-          </View>
-        </Modal>
-      </Portal>
     </View>
   );
 };
@@ -1019,22 +1095,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFF',
     marginBottom: 8,
   },
-  salesRepSelector: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 14,
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-    borderRadius: 4,
-    backgroundColor: '#FFF',
-    marginBottom: 8,
-  },
-  salesRepSelectorText: {
-    flex: 1,
-    marginLeft: 10,
-    fontSize: 14,
-    color: '#333',
-  },
   distributorsHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1107,26 +1167,6 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderColor: '#E0E0E0',
   },
-  distModalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  distModalContent: {
-    width: '90%',
-    maxHeight: '80%',
-    borderRadius: 16,
-    backgroundColor: '#FFF',
-    padding: 20,
-  },
-  distModalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 16,
-    textAlign: 'center',
-  },
   typeSelector: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1143,18 +1183,71 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#333',
   },
-  distModalButtons: {
-    marginTop: 20,
+  // Inline form styles (iOS fix for nested modals)
+  inlineDistForm: {
+    backgroundColor: '#F8F9FA',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 2,
+    borderColor: '#2196F3',
+  },
+  inlineDistFormHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  inlineDistFormTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#2196F3',
+  },
+  inlineDistFormButtons: {
+    marginTop: 16,
     gap: 12,
   },
-  distAddBtn: {
-    borderRadius: 12,
-    paddingVertical: 4,
-  },
-  distCancelBtn: {
-    borderRadius: 12,
-    paddingVertical: 4,
+  // Inline Type/Route Type Picker (iOS fix)
+  inlinePickerContainer: {
+    backgroundColor: '#FFF',
+    borderRadius: 8,
+    marginTop: 8,
+    marginBottom: 16,
+    borderWidth: 1,
     borderColor: '#E0E0E0',
+  },
+  inlinePickerItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+    gap: 12,
+  },
+  inlinePickerItemSelected: {
+    backgroundColor: '#E3F2FD',
+  },
+  inlinePickerItemText: {
+    flex: 1,
+    fontSize: 14,
+    color: '#333',
+  },
+  // Error text style
+  errorText: {
+    fontSize: 12,
+    color: '#F44336',
+    marginTop: -4,
+    marginBottom: 8,
+    marginLeft: 4,
+  },
+  // Helper text style
+  helperText: {
+    fontSize: 11,
+    color: '#666',
+    marginTop: -4,
+    marginBottom: 8,
+    marginLeft: 4,
+    fontStyle: 'italic',
   },
 });
 
