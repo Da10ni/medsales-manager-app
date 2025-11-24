@@ -160,14 +160,17 @@ const ModernDashboardScreen = ({ navigation }: any) => {
               <Text style={styles.quickActionLabel}>Assign Route</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.quickAction}>
+            <TouchableOpacity
+              style={styles.quickAction}
+              onPress={() => navigation.navigate('Metrics')}
+            >
               <LinearGradient
-                colors={['#E91E63', '#C2185B']}
+                colors={['#FF9800', '#F57C00']}
                 style={styles.quickActionGradient}
               >
-                <MaterialCommunityIcons name="chart-line" size={28} color="#FFF" />
+                <MaterialCommunityIcons name="chart-box" size={28} color="#FFF" />
               </LinearGradient>
-              <Text style={styles.quickActionLabel}>Reports</Text>
+              <Text style={styles.quickActionLabel}>Metrics</Text>
             </TouchableOpacity>
 
             <TouchableOpacity

@@ -20,6 +20,7 @@ import ModernProfileScreen from '../screens/main/ModernProfileScreen';
 import SalesRepsScreen from '../screens/SalesRepsScreen';
 import RoutesScreen from '../screens/RoutesScreen';
 import AssignRouteScreen from '../screens/AssignRouteScreen';
+import MetricsScreen from '../screens/MetricsScreen';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -72,6 +73,16 @@ const MainTabs = () => {
         }}
       />
       <Tab.Screen
+        name="Metrics"
+        component={MetricsScreen}
+        options={{
+          tabBarLabel: 'Metrics',
+          tabBarIcon: ({ color, size }) => (
+            <MaterialCommunityIcons name="chart-box" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tab.Screen
         name="Profile"
         component={ModernProfileScreen}
         options={{
@@ -87,7 +98,7 @@ const MainTabs = () => {
 
 // Root Navigator
 const AppNavigator = () => {
-  const { isAuthenticated } = useSelector((state: RootState) => state.auth);
+  const { user: manager, isAuthenticated } = useSelector((state: RootState) => state.auth);
 
   return (
     <NavigationContainer>
