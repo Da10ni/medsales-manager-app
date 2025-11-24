@@ -1,26 +1,31 @@
-import React from 'react';
-import { NavigationContainer } from '@react-navigation/native';
-import { createStackNavigator } from '@react-navigation/stack';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { useSelector } from 'react-redux';
-import { RootState } from '../redux/store';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import React from "react";
+import { NavigationContainer } from "@react-navigation/native";
+import { createStackNavigator } from "@react-navigation/stack";
+import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
+import { useSelector } from "react-redux";
+import { RootState } from "../redux/store";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 
 // Onboarding Screens
-import WelcomeScreen from '../screens/onboarding/WelcomeScreen';
-import OnboardingScreen from '../screens/onboarding/OnboardingScreen';
+import WelcomeScreen from "../screens/onboarding/WelcomeScreen";
+import OnboardingScreen from "../screens/onboarding/OnboardingScreen";
 
 // Auth Screens
-import PhoneSignUpScreen from '../screens/auth/PhoneSignUpScreen';
-import ModernProfileSetupScreen from '../screens/auth/ModernProfileSetupScreen';
+import PhoneSignUpScreen from "../screens/auth/PhoneSignUpScreen";
+import ModernProfileSetupScreen from "../screens/auth/ModernProfileSetupScreen";
 
 // Main Screens
-import ModernDashboardScreen from '../screens/main/ModernDashboardScreen';
-import ModernProfileScreen from '../screens/main/ModernProfileScreen';
-import SalesRepsScreen from '../screens/SalesRepsScreen';
-import RoutesScreen from '../screens/RoutesScreen';
-import AssignRouteScreen from '../screens/AssignRouteScreen';
-import MetricsScreen from '../screens/MetricsScreen';
+import ModernDashboardScreen from "../screens/main/ModernDashboardScreen";
+import ModernProfileScreen from "../screens/main/ModernProfileScreen";
+import SalesRepsScreen from "../screens/SalesRepsScreen";
+import RoutesScreen from "../screens/RoutesScreen";
+import AssignRouteScreen from "../screens/AssignRouteScreen";
+import MetricsScreen from "../screens/MetricsScreen";
+// Metrics Screen
+// Online Reps Screen
+import OnlineRepsScreen from "../screens/OnlineRepsScreen";
+import InProgressScreen from "../screens/InProgressRoutesScreen";
+import CompletedRoutesScreen from "../screens/CompletedRoutesScreen";
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -30,12 +35,12 @@ const MainTabs = () => {
   return (
     <Tab.Navigator
       screenOptions={{
-        tabBarActiveTintColor: '#2196F3',
-        tabBarInactiveTintColor: '#999',
+        tabBarActiveTintColor: "#2196F3",
+        tabBarInactiveTintColor: "#999",
         headerShown: false,
         tabBarStyle: {
           borderTopWidth: 1,
-          borderTopColor: '#E0E0E0',
+          borderTopColor: "#E0E0E0",
           paddingBottom: 5,
           paddingTop: 5,
           height: 60,
@@ -46,9 +51,13 @@ const MainTabs = () => {
         name="Dashboard"
         component={ModernDashboardScreen}
         options={{
-          tabBarLabel: 'Dashboard',
+          tabBarLabel: "Dashboard",
           tabBarIcon: ({ color, size }) => (
-            <MaterialCommunityIcons name="view-dashboard" size={size} color={color} />
+            <MaterialCommunityIcons
+              name="view-dashboard"
+              size={size}
+              color={color}
+            />
           ),
         }}
       />
@@ -56,9 +65,13 @@ const MainTabs = () => {
         name="SalesReps"
         component={SalesRepsScreen}
         options={{
-          tabBarLabel: 'Sales Reps',
+          tabBarLabel: "Sales Reps",
           tabBarIcon: ({ color, size }) => (
-            <MaterialCommunityIcons name="account-group" size={size} color={color} />
+            <MaterialCommunityIcons
+              name="account-group"
+              size={size}
+              color={color}
+            />
           ),
         }}
       />
@@ -66,9 +79,13 @@ const MainTabs = () => {
         name="RoutesTab"
         component={RoutesScreen}
         options={{
-          tabBarLabel: 'Routes',
+          tabBarLabel: "Routes",
           tabBarIcon: ({ color, size }) => (
-            <MaterialCommunityIcons name="map-marker-path" size={size} color={color} />
+            <MaterialCommunityIcons
+              name="map-marker-path"
+              size={size}
+              color={color}
+            />
           ),
         }}
       />
@@ -76,9 +93,13 @@ const MainTabs = () => {
         name="Metrics"
         component={MetricsScreen}
         options={{
-          tabBarLabel: 'Metrics',
+          tabBarLabel: "Metrics",
           tabBarIcon: ({ color, size }) => (
-            <MaterialCommunityIcons name="chart-box" size={size} color={color} />
+            <MaterialCommunityIcons
+              name="chart-box"
+              size={size}
+              color={color}
+            />
           ),
         }}
       />
@@ -86,7 +107,7 @@ const MainTabs = () => {
         name="Profile"
         component={ModernProfileScreen}
         options={{
-          tabBarLabel: 'Profile',
+          tabBarLabel: "Profile",
           tabBarIcon: ({ color, size }) => (
             <MaterialCommunityIcons name="account" size={size} color={color} />
           ),
@@ -98,7 +119,9 @@ const MainTabs = () => {
 
 // Root Navigator
 const AppNavigator = () => {
-  const { user: manager, isAuthenticated } = useSelector((state: RootState) => state.auth);
+  const { user: manager, isAuthenticated } = useSelector(
+    (state: RootState) => state.auth
+  );
 
   return (
     <NavigationContainer>
@@ -142,15 +165,30 @@ const AppNavigator = () => {
               component={AssignRouteScreen}
               options={{
                 headerShown: true,
-                title: 'Assign Route',
+                title: "Assign Route",
                 headerStyle: {
-                  backgroundColor: '#2196F3',
+                  backgroundColor: "#2196F3",
                 },
-                headerTintColor: '#fff',
+                headerTintColor: "#fff",
                 headerTitleStyle: {
-                  fontWeight: 'bold',
+                  fontWeight: "bold",
                 },
               }}
+            />
+            <Stack.Screen
+              name="OnlineReps"
+              component={OnlineRepsScreen}
+              options={{ headerShown: true, title: "Online Representatives" }}
+            />
+            <Stack.Screen
+              name="InProgressRoutes"
+              component={InProgressScreen}
+              options={{ headerShown: true, title: "InProgressRoutes" }}
+            />
+            <Stack.Screen
+              name="CompletedRoutes"
+              component={CompletedRoutesScreen}
+              options={{ headerShown: true, title: "Completed Routes" }}
             />
           </>
         )}
