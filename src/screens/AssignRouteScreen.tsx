@@ -43,6 +43,56 @@ const AssignRouteScreen = ({ route, navigation }: any) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
 
+interface StopDetails {
+  stopNumber: number;
+  activity: string;
+  customInstructions: string;
+}
+
+interface Assignment {
+  salesRepId: string;
+  salesRepName: string;
+  stops: number[]; // Array of stop numbers (1-based)
+  stopDetails: StopDetails[]; // Details for each stop
+}
+
+const activityTypes = [
+  { value: 'visit', label: 'Visit', icon: 'map-marker-check', color: '#4CAF50' },
+  { value: 'follow-up', label: 'Follow Up', icon: 'phone-check', color: '#2196F3' },
+  { value: 'take-order', label: 'Take Order', icon: 'cart-plus', color: '#FF9800' },
+  { value: 'stock-check', label: 'Stock Check', icon: 'package-variant', color: '#9C27B0' },
+  { value: 'promote', label: 'Promote', icon: 'bullhorn', color: '#F44336' },
+  { value: 'delivery', label: 'Delivery', icon: 'truck-delivery', color: '#00BCD4' },
+];
+
+const AssignRouteScreen = ({ navigation }: any) => {
+  const { user: manager } = useSelector((state: RootState) => state.auth);
+
+  const [loading, setLoading] = useState(true);
+  const [routes, setRoutes] = useState<Route[]>([]);
+  const [salesReps, setSalesReps] = useState<SalesRep[]>([]);
+  const [assigning, setAssigning] = useState(false);
+
+  // Step 1: Date Selection
+  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [showDatePicker, setShowDatePicker] = useState(false);
+
+  // Step 2: Route Selection
+  const [selectedRoute, setSelectedRoute] = useState<Route | null>(null);
+
+  // Step 3: Sales Rep & Stop Assignment
+  const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [selectedSalesReps, setSelectedSalesReps] = useState<string[]>([]);
+
+  // Activity Dropdown Modal
+  const [showActivityModal, setShowActivityModal] = useState(false);
+  const [currentStop, setCurrentStop] = useState<{ repId: string; stopNumber: number } | null>(null);
+
+  const [repDropdownVisible, setRepDropdownVisible] = useState(false);
+  const [repSearchQuery, setRepSearchQuery] = useState('');
+  const [isFocused, setIsFocused] = useState(false);
+
+  // Fetch routes and sales reps
   useEffect(() => {
     if (user) {
       dispatch(fetchSalesReps(user.id));
@@ -103,7 +153,75 @@ const AssignRouteScreen = ({ route, navigation }: any) => {
       newLocations.forEach((loc, idx) => {
         loc.visitOrder = idx + 1;
       });
-      setSelectedLocations(newLocations);
+    });
+
+    const duplicates: string[] = [];
+    stopAssignments.forEach((reps, stop) => {
+      if (reps.length > 1) {
+        duplicates.push(`Stop ${stop} (${reps.join(', ')})`);
+      }
+    });
+
+    if (duplicates.length > 0) {
+      Alert.alert(
+        'Duplicate Assignments',
+        `The following stops are assigned to multiple sales reps:\n${duplicates.join('\n')}\n\nPlease ensure each stop is assigned to only one sales rep.`
+      );
+      return false;
+    }
+
+    return true;
+  };
+
+  const handleAssign = async () => {
+    if (!validateAssignments()) return;
+
+    setAssigning(true);
+    try {
+      // Create assignments in Firestore
+      for (const assignment of assignments) {
+        const assignmentId = `assignment_${Date.now()}_${assignment.salesRepId}`;
+        const assignedStops = assignment.stops.map((stopNumber) => {
+          const dist = selectedRoute!.distributors[stopNumber - 1];
+          const details = assignment.stopDetails.find((d) => d.stopNumber === stopNumber);
+          return {
+            ...dist,
+            stopNumber,
+            activity: details?.activity || 'visit',
+            customInstructions: details?.customInstructions || '',
+            status: 'pending',
+          };
+        });
+
+        await setDoc(doc(db, 'assignments', assignmentId), {
+          routeId: selectedRoute!.id,
+          routeName: selectedRoute!.name,
+          salesRepId: assignment.salesRepId,
+          salesRepName: assignment.salesRepName,
+          managerId: manager?.phone || '',
+          date: Timestamp.fromDate(selectedDate),
+          stops: assignedStops,
+          status: 'pending',
+          createdAt: Timestamp.now(),
+        });
+      }
+
+      Alert.alert(
+        'Success!',
+        `Route "${selectedRoute!.name}" has been assigned to ${assignments.length} sales rep${assignments.length > 1 ? 's' : ''
+        } for ${selectedDate.toLocaleDateString()}`,
+        [
+          {
+            text: 'OK',
+            onPress: () => navigation.goBack(),
+          },
+        ]
+      );
+    } catch (error: any) {
+      console.error('Error assigning route:', error);
+      Alert.alert('Error', 'Failed to assign route. Please try again.');
+    } finally {
+      setAssigning(false);
     }
   };
 
@@ -415,10 +533,349 @@ const AssignRouteScreen = ({ route, navigation }: any) => {
         ))}
       </View>
 
+<<<<<<< Updated upstream
       {step === 1 && renderStep1()}
       {step === 2 && renderStep2()}
       {step === 3 && renderStep3()}
       {step === 4 && renderStep4()}
+=======
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        {/* Step 1: Date Selection */}
+        <Surface style={styles.section} elevation={2}>
+          <View style={styles.sectionHeader}>
+            <View style={styles.stepBadge}>
+              <Text style={styles.stepBadgeText}>1</Text>
+            </View>
+            <Text style={styles.sectionTitle}>Select Date</Text>
+          </View>
+          <TouchableOpacity
+            style={styles.dateSelector}
+            onPress={() => setShowDatePicker(true)}
+          >
+            <MaterialCommunityIcons name="calendar" size={24} color="#2196F3" />
+            <Text style={styles.dateSelectorText}>
+              {selectedDate.toLocaleDateString('en-US', {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+              })}
+            </Text>
+            <MaterialCommunityIcons name="chevron-down" size={24} color="#666" />
+          </TouchableOpacity>
+          {showDatePicker && (
+            <DateTimePicker
+              value={selectedDate}
+              mode="date"
+              display="default"
+              onChange={handleDateChange}
+              minimumDate={new Date()}
+            />
+          )}
+        </Surface>
+
+        {/* Step 2: Route Selection */}
+        <Surface style={styles.section} elevation={2}>
+          <View style={styles.sectionHeader}>
+            <View style={styles.stepBadge}>
+              <Text style={styles.stepBadgeText}>2</Text>
+            </View>
+            <Text style={styles.sectionTitle}>Select Route</Text>
+          </View>
+          {routes.length === 0 ? (
+            <Text style={styles.emptyText}>No routes available</Text>
+          ) : (
+            routes.map((route) => (
+              <TouchableOpacity
+                key={route.id}
+                style={[
+                  styles.routeItem,
+                  selectedRoute?.id === route.id && styles.routeItemSelected,
+                ]}
+                onPress={() => handleRouteSelect(route)}
+              >
+                <View style={styles.routeItemLeft}>
+                  <MaterialCommunityIcons
+                    name={selectedRoute?.id === route.id ? 'radiobox-marked' : 'radiobox-blank'}
+                    size={24}
+                    color={selectedRoute?.id === route.id ? '#2196F3' : '#999'}
+                  />
+                  <View style={styles.routeItemInfo}>
+                    <Text style={styles.routeItemName}>{route.name}</Text>
+                    <Text style={styles.routeItemStops}>
+                      {route.distributors.length} stops
+                    </Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
+            ))
+          )}
+        </Surface>
+
+        {/* Step 3: Sales Rep & Stop Assignment */}
+        {selectedRoute && (
+          <Surface style={styles.section} elevation={2}>
+            <View style={styles.sectionHeader}>
+              <View style={styles.stepBadge}>
+                <Text style={styles.stepBadgeText}>3</Text>
+              </View>
+              <Text style={styles.sectionTitle}>Assign Stops to Sales Reps</Text>
+            </View>
+
+            {/* Sales Rep Selection */}
+            <TouchableOpacity
+              style={styles.dropdownButton}
+              onPress={() => setRepDropdownVisible(true)}
+            >
+              <Text style={styles.dropdownButtonText}>
+                {selectedSalesReps.length === 0
+                  ? "Select Sales Representatives"
+                  : `${selectedSalesReps.length} selected`}
+              </Text>
+
+              <MaterialCommunityIcons name="chevron-down" size={22} color="#555" />
+            </TouchableOpacity>
+
+            {/* Sales Rep Selection  Modal */}
+            <Modal
+              visible={repDropdownVisible}
+              animationType="slide"
+              presentationStyle="fullScreen"
+              onRequestClose={() => setRepDropdownVisible(false)}
+            >
+              <View style={styles.fullScreenModal}>
+
+                {/* Header Section */}
+                <View style={styles.modalHeader}>
+                  <TouchableOpacity onPress={() => setRepDropdownVisible(false)}>
+                    <MaterialCommunityIcons name="arrow-left" size={26} color="#fff" />
+                  </TouchableOpacity>
+
+                  <Text style={styles.modalHeaderText}>Select Sales Representative</Text>
+                </View>
+
+
+                <View style={[styles.searchContainer, isFocused && styles.focused]}>
+                  <MaterialCommunityIcons name="magnify" size={22} color={isFocused ? '#2196F3' : '#777'} style={styles.icon} />
+                  <TextInput
+                    placeholder="Search name or number..."
+                    value={repSearchQuery}
+                    onChangeText={setRepSearchQuery}
+                    onFocus={() => setIsFocused(true)}
+                    onBlur={() => setIsFocused(false)}
+                    style={styles.searchInput}
+                  />
+                </View>
+
+                {/* Scrollable List */}
+                <ScrollView>
+                  {salesReps
+                    .filter(
+                      rep =>
+                        rep.name.toLowerCase().includes(repSearchQuery.toLowerCase()) ||
+                        rep.phone.includes(repSearchQuery)
+                    )
+                    .map(rep => (
+                      <TouchableOpacity
+                        key={rep.id}
+                        style={styles.modalRow}
+                        onPress={() => {
+                          handleSalesRepToggle(rep.id);
+                          setRepDropdownVisible(false);
+                          setRepSearchQuery('');
+                        }}
+                      >
+                        <View>
+                          <Text style={styles.salesRepName}>{rep.name}</Text>
+                          <Text style={styles.salesRepPhone}>{rep.phone}</Text>
+                        </View>
+
+                        <Checkbox
+                          status={selectedSalesReps.includes(rep.id) ? 'checked' : 'unchecked'}
+                          color="#2196F3"
+                        />
+                      </TouchableOpacity>
+                    ))}
+                </ScrollView>
+
+              </View>
+            </Modal>
+
+            <Divider style={styles.divider} />
+
+            {/* Stop Assignment for each selected rep */}
+            {assignments.length > 0 && (
+              <>
+                <Text style={styles.subsectionTitle}>Assign Stops & Activities</Text>
+                {assignments.map((assignment) => (
+                  <View key={assignment.salesRepId} style={styles.assignmentCard}>
+                    <View style={styles.assignmentHeader}>
+                      <Text style={styles.assignmentRepName}>{assignment.salesRepName}</Text>
+                      <View style={styles.assignmentActions}>
+                        <Button
+                          mode="text"
+                          onPress={() => handleSelectAllStops(assignment.salesRepId)}
+                          compact
+                          textColor="#2196F3"
+                        >
+                          Select All
+                        </Button>
+                        <Button
+                          mode="text"
+                          onPress={() => handleDeselectAllStops(assignment.salesRepId)}
+                          compact
+                          textColor="#F44336"
+                        >
+                          Clear
+                        </Button>
+                      </View>
+                    </View>
+
+                    {/* Stop List with Activity & Instructions */}
+                    <View style={styles.stopsList}>
+                      {selectedRoute.distributors.map((dist, idx) => {
+                        const stopNumber = idx + 1;
+                        const isSelected = assignment.stops.includes(stopNumber);
+                        const stopDetails = getStopDetails(assignment.salesRepId, stopNumber);
+                        const activityInfo = stopDetails ? getActivityInfo(stopDetails.activity) : activityTypes[0];
+
+                        return (
+                          <View key={dist.id} style={styles.stopItemContainer}>
+                            {/* Stop Header with Checkbox */}
+                            <View style={styles.stopHeader}>
+                              <Checkbox
+                                status={isSelected ? 'checked' : 'unchecked'}
+                                onPress={() => handleStopToggle(assignment.salesRepId, stopNumber)}
+                                color="#2196F3"
+                              />
+                              <View style={styles.stopHeaderInfo}>
+                                <Text style={styles.stopNumber}>Stop {stopNumber}</Text>
+                                <Text style={styles.stopName}>{dist.name}</Text>
+                                <Text style={styles.stopAddress} numberOfLines={1}>
+                                  {dist.address}
+                                </Text>
+                              </View>
+                            </View>
+
+                            {/* Activity & Instructions (only if selected) */}
+                            {isSelected && (
+                              <View style={styles.stopDetails}>
+                                {/* Activity Dropdown */}
+                                <Text style={styles.fieldLabel}>Activity Type</Text>
+                                <TouchableOpacity
+                                  style={styles.activitySelector}
+                                  onPress={() => {
+                                    setCurrentStop({ repId: assignment.salesRepId, stopNumber });
+                                    setShowActivityModal(true);
+                                  }}
+                                >
+                                  <MaterialCommunityIcons
+                                    name={activityInfo.icon as any}
+                                    size={20}
+                                    color={activityInfo.color}
+                                  />
+                                  <Text style={styles.activityText}>{activityInfo.label}</Text>
+                                  <MaterialCommunityIcons name="chevron-down" size={20} color="#666" />
+                                </TouchableOpacity>
+
+                                {/* Custom Instructions */}
+                                <Text style={styles.fieldLabel}>Custom Instructions</Text>
+                                <TextInput
+                                  mode="outlined"
+                                  placeholder="Enter custom instructions for this stop (optional)"
+                                  value={stopDetails?.customInstructions || ''}
+                                  onChangeText={(text) =>
+                                    handleInstructionsChange(assignment.salesRepId, stopNumber, text)
+                                  }
+                                  multiline
+                                  numberOfLines={2}
+                                  style={styles.instructionsInput}
+                                  outlineColor="#E0E0E0"
+                                  activeOutlineColor="#2196F3"
+                                />
+                              </View>
+                            )}
+                          </View>
+                        );
+                      })}
+                    </View>
+
+                    {assignment.stops.length > 0 && (
+                      <View style={styles.selectedStopsInfo}>
+                        <MaterialCommunityIcons name="check-circle" size={16} color="#4CAF50" />
+                        <Text style={styles.selectedStopsText}>
+                          {assignment.stops.length} stop{assignment.stops.length > 1 ? 's' : ''} assigned
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                ))}
+              </>
+            )}
+          </Surface>
+        )}
+
+        <View style={{ height: 100 }} />
+      </ScrollView>
+
+      {/* Assign Button */}
+      {selectedRoute && assignments.length > 0 && (
+        <View style={styles.footer}>
+          <Button
+            mode="contained"
+            onPress={handleAssign}
+            loading={assigning}
+            disabled={assigning}
+            style={styles.assignButton}
+            buttonColor="#2196F3"
+            icon="check"
+          >
+            {assigning ? 'Assigning...' : 'Assign Route'}
+          </Button>
+        </View>
+      )}
+
+      {/* Activity Selection Modal */}
+      <Modal
+        visible={showActivityModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowActivityModal(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowActivityModal(false)}
+        >
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Select Activity Type</Text>
+            <Divider style={styles.modalDivider} />
+            {activityTypes.map((activity) => (
+              <TouchableOpacity
+                key={activity.value}
+                style={styles.activityOption}
+                onPress={() => handleActivitySelect(activity.value)}
+              >
+                <MaterialCommunityIcons
+                  name={activity.icon as any}
+                  size={24}
+                  color={activity.color}
+                />
+                <Text style={styles.activityOptionText}>{activity.label}</Text>
+                <MaterialCommunityIcons name="chevron-right" size={20} color="#999" />
+              </TouchableOpacity>
+            ))}
+            <Button
+              mode="text"
+              onPress={() => setShowActivityModal(false)}
+              style={styles.modalCancelButton}
+            >
+              Cancel
+            </Button>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+>>>>>>> Stashed changes
     </View>
   );
 };
@@ -442,6 +899,84 @@ const styles = StyleSheet.create({
   },
   stepContainer: {
     flex: 1,
+<<<<<<< Updated upstream
+=======
+    marginLeft: 8,
+  },
+  stopNumber: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#2196F3',
+    marginBottom: 2,
+  },
+  stopName: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 2,
+  },
+  stopAddress: {
+    fontSize: 12,
+    color: '#666',
+  },
+  stopDetails: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#F0F0F0',
+  },
+  fieldLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 8,
+    marginTop: 8,
+  },
+  activitySelector: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    borderRadius: 8,
+    backgroundColor: '#FFF',
+    marginBottom: 8,
+  },
+  activityText: {
+    flex: 1,
+    marginLeft: 12,
+    fontSize: 15,
+    color: '#333',
+    fontWeight: '500',
+  },
+  instructionsInput: {
+    backgroundColor: '#FFF',
+    fontSize: 14,
+    marginBottom: 8,
+    paddingTop:20,
+  },
+  selectedStopsInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 12,
+    padding: 12,
+    backgroundColor: '#E8F5E9',
+    borderRadius: 8,
+  },
+  selectedStopsText: {
+    flex: 1,
+    marginLeft: 8,
+    fontSize: 12,
+    color: '#2E7D32',
+  },
+  emptyText: {
+    fontSize: 14,
+    color: '#999',
+    textAlign: 'center',
+    paddingVertical: 20,
+  },
+  footer: {
+>>>>>>> Stashed changes
     padding: 16,
   },
   stepTitle: {
@@ -575,6 +1110,7 @@ const styles = StyleSheet.create({
     color: '#666',
     marginTop: 12,
   },
+<<<<<<< Updated upstream
   reviewValue: {
     fontSize: 16,
     fontWeight: '600',
@@ -594,6 +1130,84 @@ const styles = StyleSheet.create({
   reviewLocationName: {
     flex: 1,
   },
+=======
+
+  fullScreenModal: {
+    flex: 1,
+    backgroundColor: "#fff",
+  },
+
+  modalHeader: {
+    backgroundColor: "#2196F3",
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  modalHeaderText: {
+    color: "#fff",
+    fontSize: 18,
+    fontWeight: "600",
+  },
+  modalRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderColor: "#eee",
+  },
+
+  repName: {
+    fontSize: 16,
+    fontWeight: "500",
+  },
+  repNumber: {
+    fontSize: 13,
+    color: "#555",
+    marginTop: 2,
+  },
+
+  dropdownButton: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: 14,
+    borderWidth: 1,
+    borderColor: "#ccc",
+    borderRadius: 8,
+    marginBottom: 16,
+  },
+  dropdownButtonText: {
+    fontSize: 16,
+    color: "#333",
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f1f1f1',
+    paddingHorizontal: 15,
+    margin: 12,
+    borderRadius: 8,
+    height: 45,
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+  searchInput: {
+    flex: 1,
+    paddingHorizontal: 20,
+    fontSize: 16,
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    height: '100%',
+  },
+  icon: {
+    marginRight: 10,
+  },
+
+>>>>>>> Stashed changes
 });
 
 export default AssignRouteScreen;
