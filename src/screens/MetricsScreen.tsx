@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import {
   View,
   StyleSheet,
@@ -8,7 +8,7 @@ import {
   Dimensions,
   Platform,
   Linking,
-} from 'react-native';
+} from "react-native";
 import {
   Text,
   Surface,
@@ -16,13 +16,20 @@ import {
   Chip,
   Divider,
   ActivityIndicator,
-} from 'react-native-paper';
-import { LinearGradient } from 'expo-linear-gradient';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { collection, query, where, onSnapshot, Timestamp } from 'firebase/firestore';
-import { db } from '../services/firebase';
-import { useSelector } from 'react-redux';
-import { RootState } from '../redux/store';
+} from "react-native-paper";
+import { LinearGradient } from "expo-linear-gradient";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import {
+  collection,
+  query,
+  where,
+  onSnapshot,
+  Timestamp,
+} from "firebase/firestore";
+import { db } from "../services/firebase";
+import { useSelector } from "react-redux";
+import { RootState } from "../redux/store";
+import { useMemo } from "react";
 
 // Conditional import for MapView
 let MapView: any = null;
@@ -30,15 +37,15 @@ let Marker: any = null;
 let PROVIDER_GOOGLE: any = null;
 
 try {
-  const maps = require('react-native-maps');
+  const maps = require("react-native-maps");
   MapView = maps.default;
   Marker = maps.Marker;
   PROVIDER_GOOGLE = maps.PROVIDER_GOOGLE;
 } catch (e) {
-  console.log('MapView not available:', e);
+  console.log("MapView not available:", e);
 }
 
-const { width, height } = Dimensions.get('window');
+const { width, height } = Dimensions.get("window");
 
 interface SalesRep {
   id: string;
@@ -68,7 +75,7 @@ interface Assignment {
   stops: any[];
 }
 
-const MetricsScreen = () => {
+const MetricsScreen = ({ navigation }: any) => {
   const { user: manager } = useSelector((state: RootState) => state.auth);
   const [salesReps, setSalesReps] = useState<SalesRep[]>([]);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
@@ -81,9 +88,7 @@ const MetricsScreen = () => {
     if (!manager?.phone) return;
 
     // Subscribe to ALL sales reps (managers can see all reps they can assign to)
-    const salesRepsQuery = query(
-      collection(db, 'salesReps')
-    );
+    const salesRepsQuery = query(collection(db, "salesReps"));
 
     const unsubscribeSalesReps = onSnapshot(salesRepsQuery, (snapshot) => {
       const repsData: SalesRep[] = [];
@@ -91,9 +96,9 @@ const MetricsScreen = () => {
         const data = doc.data();
         repsData.push({
           id: doc.id,
-          name: data.name || 'Unknown',
-          email: data.email || '',
-          phone: data.phone || '',
+          name: data.name || "Unknown",
+          email: data.email || "",
+          phone: data.phone || "",
           isOnline: data.isOnline || false,
           lastSeen: data.lastSeen?.toDate() || new Date(),
           currentLocation: data.currentLocation
@@ -103,7 +108,8 @@ const MetricsScreen = () => {
                 accuracy: data.currentLocation.accuracy || 0,
                 heading: data.currentLocation.heading || null,
                 speed: data.currentLocation.speed || null,
-                timestamp: data.currentLocation.timestamp?.toDate() || new Date(),
+                timestamp:
+                  data.currentLocation.timestamp?.toDate() || new Date(),
               }
             : undefined,
           lastLocationUpdate: data.lastLocationUpdate?.toDate(),
@@ -122,10 +128,10 @@ const MetricsScreen = () => {
     endOfDay.setHours(23, 59, 59, 999);
 
     const assignmentsQuery = query(
-      collection(db, 'assignments'),
-      where('managerId', '==', manager.phone),
-      where('date', '>=', Timestamp.fromDate(startOfDay)),
-      where('date', '<=', Timestamp.fromDate(endOfDay))
+      collection(db, "assignments"),
+      where("managerId", "==", manager.phone),
+      where("date", ">=", Timestamp.fromDate(startOfDay)),
+      where("date", "<=", Timestamp.fromDate(endOfDay))
     );
 
     const unsubscribeAssignments = onSnapshot(assignmentsQuery, (snapshot) => {
@@ -134,11 +140,11 @@ const MetricsScreen = () => {
         const data = doc.data();
         assignmentsData.push({
           id: doc.id,
-          routeName: data.routeName || 'Unknown Route',
-          salesRepId: data.salesRepId || '',
-          salesRepName: data.salesRepName || 'Unknown',
+          routeName: data.routeName || "Unknown Route",
+          salesRepId: data.salesRepId || "",
+          salesRepName: data.salesRepName || "Unknown",
           date: data.date?.toDate() || new Date(),
-          status: data.status || 'pending',
+          status: data.status || "pending",
           stops: data.stops || [],
         });
       });
@@ -159,10 +165,46 @@ const MetricsScreen = () => {
 
   const getOnlineCount = () => salesReps.filter((rep) => rep.isOnline).length;
   const getTotalAssignments = () => assignments.length;
-  const getCompletedAssignments = () =>
-    assignments.filter((a) => a.status === 'completed').length;
-  const getInProgressAssignments = () =>
-    assignments.filter((a) => a.status === 'in-progress').length;
+  const getCompletedAssignmentsDetailed = () => {
+    const result = [];
+
+    assignments.forEach((a) => {
+      const completedStops = a.stops.filter((s) => s.status === "completed");
+
+      // Add this assignment ONLY if ALL stops are completed
+      if (a.stops.length > 0 && completedStops.length === a.stops.length) {
+        result.push({
+          assignmentId: a.id,
+          routeName: a.routeName,
+          salesRepName: a.salesRepName,
+          salesRepId: a.salesRepId,
+          completedStops: completedStops,
+          totalStops: a.stops.length,
+        });
+      }
+    });
+
+    return result;
+  };
+
+  const getInProgressAssignments = () => {
+    const result = [];
+
+    assignments.forEach((a) => {
+      const totalStops = a.stops.length;
+      const pendingStops = a.stops.filter(
+        (s) => s.status !== "completed"
+      ).length;
+
+      // Route qualifies as IN-PROGRESS:
+      if (totalStops > 0 && pendingStops > 0) {
+        result.push(a);
+      }
+    });
+    // console.log("Assignments state:", assignments);
+
+    return result;
+  };
 
   const getRepAssignment = (repId: string) => {
     return assignments.find((a) => a.salesRepId === repId);
@@ -175,7 +217,7 @@ const MetricsScreen = () => {
     const hours = Math.floor(minutes / 60);
     const days = Math.floor(hours / 24);
 
-    if (minutes < 1) return 'Just now';
+    if (minutes < 1) return "Just now";
     if (minutes < 60) return `${minutes}m ago`;
     if (hours < 24) return `${hours}h ago`;
     return `${days}d ago`;
@@ -213,7 +255,7 @@ const MetricsScreen = () => {
     <View style={styles.container}>
       {/* Header */}
       <LinearGradient
-        colors={['#2196F3', '#1976D2', '#0D47A1']}
+        colors={["#2196F3", "#1976D2", "#0D47A1"]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.header}
@@ -225,31 +267,49 @@ const MetricsScreen = () => {
       <ScrollView
         style={styles.content}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
       >
         {/* Stats Grid */}
         <View style={styles.statsGrid}>
-          <Surface style={styles.statCard} elevation={2}>
-            <LinearGradient
-              colors={['#4CAF50', '#388E3C']}
-              style={styles.statGradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-            >
-              <MaterialCommunityIcons name="account-check" size={32} color="#FFF" />
-              <Text style={styles.statValue}>{getOnlineCount()}</Text>
-              <Text style={styles.statLabel}>Online Now</Text>
-            </LinearGradient>
-          </Surface>
+          <TouchableOpacity
+            style={{ flex: 1 }}
+            onPress={() => {
+              const onlineReps = salesReps.filter((rep) => rep.isOnline);
+              navigation.navigate("OnlineReps", { onlineReps });
+            }}
+          >
+            <Surface style={styles.statCard} elevation={2}>
+              <LinearGradient
+                colors={["#4CAF50", "#388E3C"]}
+                style={styles.statGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              >
+                <MaterialCommunityIcons
+                  name="account-check"
+                  size={32}
+                  color="#FFF"
+                />
+                <Text style={styles.statValue}>{getOnlineCount()}</Text>
+                <Text style={styles.statLabel}>Online Now</Text>
+              </LinearGradient>
+            </Surface>
+          </TouchableOpacity>
 
           <Surface style={styles.statCard} elevation={2}>
             <LinearGradient
-              colors={['#2196F3', '#1976D2']}
+              colors={["#2196F3", "#1976D2"]}
               style={styles.statGradient}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
             >
-              <MaterialCommunityIcons name="map-marker-path" size={32} color="#FFF" />
+              <MaterialCommunityIcons
+                name="map-marker-path"
+                size={32}
+                color="#FFF"
+              />
               <Text style={styles.statValue}>{getTotalAssignments()}</Text>
               <Text style={styles.statLabel}>Total Routes</Text>
             </LinearGradient>
@@ -257,31 +317,60 @@ const MetricsScreen = () => {
         </View>
 
         <View style={styles.statsGrid}>
-          <Surface style={styles.statCard} elevation={2}>
-            <LinearGradient
-              colors={['#FF9800', '#F57C00']}
-              style={styles.statGradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-            >
-              <MaterialCommunityIcons name="progress-clock" size={32} color="#FFF" />
-              <Text style={styles.statValue}>{getInProgressAssignments()}</Text>
-              <Text style={styles.statLabel}>In Progress</Text>
-            </LinearGradient>
-          </Surface>
+          <TouchableOpacity
+            style={{ flex: 1 }}
+            onPress={() => {
+              const inProgressRoutes = getInProgressAssignments();
 
-          <Surface style={styles.statCard} elevation={2}>
-            <LinearGradient
-              colors={['#9C27B0', '#7B1FA2']}
-              style={styles.statGradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-            >
-              <MaterialCommunityIcons name="check-circle" size={32} color="#FFF" />
-              <Text style={styles.statValue}>{getCompletedAssignments()}</Text>
-              <Text style={styles.statLabel}>Completed</Text>
-            </LinearGradient>
-          </Surface>
+              navigation.navigate("InProgressRoutes", { inProgressRoutes });
+            }}
+          >
+            <Surface style={styles.statCard} elevation={2}>
+              <LinearGradient
+                colors={["#FF9800", "#F57C00"]}
+                style={styles.statGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              >
+                <MaterialCommunityIcons
+                  name="progress-clock"
+                  size={32}
+                  color="#FFF"
+                />
+                <Text style={styles.statValue}>
+                  {getInProgressAssignments().length}
+                </Text>
+                <Text style={styles.statLabel}>In Progress</Text>
+              </LinearGradient>
+            </Surface>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={{ flex: 1 }}
+            onPress={() => {
+              const completedStopEntries = getCompletedAssignmentsDetailed();
+              navigation.navigate("CompletedRoutes", { completedStopEntries });
+            }}
+          >
+            <Surface style={styles.statCard} elevation={2}>
+              <LinearGradient
+                colors={["#9C27B0", "#7B1FA2"]}
+                style={styles.statGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              >
+                <MaterialCommunityIcons
+                  name="check-circle"
+                  size={32}
+                  color="#FFF"
+                />
+                <Text style={styles.statValue}>
+                  {getCompletedAssignmentsDetailed().length}
+                </Text>
+                <Text style={styles.statLabel}>Completed</Text>
+              </LinearGradient>
+            </Surface>
+          </TouchableOpacity>
         </View>
 
         {/* Map View Toggle */}
@@ -293,16 +382,16 @@ const MetricsScreen = () => {
             >
               <View style={styles.mapToggleLeft}>
                 <MaterialCommunityIcons
-                  name={showMap ? 'map-marker-off' : 'map-marker-check'}
+                  name={showMap ? "map-marker-off" : "map-marker-check"}
                   size={24}
                   color="#2196F3"
                 />
                 <Text style={styles.mapToggleText}>
-                  {showMap ? 'Hide Map' : 'Show Live Locations'}
+                  {showMap ? "Hide Map" : "Show Live Locations"}
                 </Text>
               </View>
               <MaterialCommunityIcons
-                name={showMap ? 'chevron-up' : 'chevron-down'}
+                name={showMap ? "chevron-up" : "chevron-down"}
                 size={24}
                 color="#666"
               />
@@ -338,8 +427,15 @@ const MetricsScreen = () => {
             )}
             {showMap && !MapView && (
               <View style={styles.mapContainer}>
-                <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
-                  <Text style={{ textAlign: 'center', color: '#666' }}>
+                <View
+                  style={{
+                    flex: 1,
+                    justifyContent: "center",
+                    alignItems: "center",
+                    padding: 20,
+                  }}
+                >
+                  <Text style={{ textAlign: "center", color: "#666" }}>
                     Map view is not available. Please restart the app.
                   </Text>
                 </View>
@@ -364,9 +460,9 @@ const MetricsScreen = () => {
         ) : (
           salesReps.map((rep) => {
             const assignment = getRepAssignment(rep.id);
-            const completedStops = assignment?.stops.filter(
-              (s) => s.status === 'completed'
-            ).length || 0;
+            const completedStops =
+              assignment?.stops.filter((s) => s.status === "completed")
+                .length || 0;
             const totalStops = assignment?.stops.length || 0;
 
             return (
@@ -390,16 +486,18 @@ const MetricsScreen = () => {
                           style={[
                             styles.statusChip,
                             {
-                              backgroundColor: rep.isOnline ? '#E8F5E9' : '#FFEBEE',
+                              backgroundColor: rep.isOnline
+                                ? "#E8F5E9"
+                                : "#FFEBEE",
                             },
                           ]}
                           textStyle={{
-                            color: rep.isOnline ? '#4CAF50' : '#F44336',
+                            color: rep.isOnline ? "#4CAF50" : "#F44336",
                             fontSize: 11,
                           }}
-                          icon={rep.isOnline ? 'circle' : 'circle-outline'}
+                          icon={rep.isOnline ? "circle" : "circle-outline"}
                         >
-                          {rep.isOnline ? 'Online' : 'Offline'}
+                          {rep.isOnline ? "Online" : "Offline"}
                         </Chip>
                         <Text style={styles.lastSeenText}>
                           {formatLastSeen(rep.lastSeen)}
@@ -412,7 +510,9 @@ const MetricsScreen = () => {
                     <TouchableOpacity
                       style={styles.locationButton}
                       onPress={() => {
-                        const url = `https://www.google.com/maps?q=${rep.currentLocation!.latitude},${rep.currentLocation!.longitude}`;
+                        const url = `https://www.google.com/maps?q=${
+                          rep.currentLocation!.latitude
+                        },${rep.currentLocation!.longitude}`;
                         Linking.openURL(url);
                       }}
                     >
@@ -435,7 +535,9 @@ const MetricsScreen = () => {
                           size={20}
                           color="#2196F3"
                         />
-                        <Text style={styles.assignmentTitle}>{assignment.routeName}</Text>
+                        <Text style={styles.assignmentTitle}>
+                          {assignment.routeName}
+                        </Text>
                       </View>
                       <View style={styles.progressSection}>
                         <View style={styles.progressInfo}>
@@ -449,7 +551,7 @@ const MetricsScreen = () => {
                         </View>
                         <View style={styles.progressBarContainer}>
                           <LinearGradient
-                            colors={['#4CAF50', '#388E3C']}
+                            colors={["#4CAF50", "#388E3C"]}
                             style={[
                               styles.progressBarFill,
                               {
@@ -487,18 +589,18 @@ const MetricsScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8F9FA',
+    backgroundColor: "#F8F9FA",
   },
   loadingContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#F8F9FA',
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#F8F9FA",
   },
   loadingText: {
     marginTop: 16,
     fontSize: 16,
-    color: '#666',
+    color: "#666",
   },
   header: {
     paddingTop: 50,
@@ -509,20 +611,20 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 28,
-    fontWeight: 'bold',
-    color: '#FFF',
+    fontWeight: "bold",
+    color: "#FFF",
     marginBottom: 4,
   },
   headerSubtitle: {
     fontSize: 15,
-    color: 'rgba(255, 255, 255, 0.9)',
+    color: "rgba(255, 255, 255, 0.9)",
   },
   content: {
     flex: 1,
     marginTop: -20,
   },
   statsGrid: {
-    flexDirection: 'row',
+    flexDirection: "row",
     paddingHorizontal: 16,
     gap: 10,
     marginBottom: 10,
@@ -530,56 +632,56 @@ const styles = StyleSheet.create({
   statCard: {
     flex: 1,
     borderRadius: 16,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   statGradient: {
     padding: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     height: 120,
   },
   statValue: {
     fontSize: 26,
-    fontWeight: 'bold',
-    color: '#FFF',
+    fontWeight: "bold",
+    color: "#FFF",
     marginTop: 8,
   },
   statLabel: {
     fontSize: 11,
-    color: 'rgba(255, 255, 255, 0.9)',
+    color: "rgba(255, 255, 255, 0.9)",
     marginTop: 4,
   },
   mapToggleCard: {
     margin: 16,
     borderRadius: 16,
-    backgroundColor: '#FFF',
-    overflow: 'hidden',
+    backgroundColor: "#FFF",
+    overflow: "hidden",
   },
   mapToggleButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     padding: 16,
   },
   mapToggleLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 12,
   },
   mapToggleText: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
+    fontWeight: "600",
+    color: "#333",
   },
   mapContainer: {
-    width: '100%',
+    width: "100%",
     height: 300,
     borderTopWidth: 1,
-    borderTopColor: '#E0E0E0',
+    borderTopColor: "#E0E0E0",
   },
   map: {
-    width: '100%',
-    height: '100%',
+    width: "100%",
+    height: "100%",
   },
   sectionHeader: {
     paddingHorizontal: 16,
@@ -588,24 +690,24 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 20,
-    fontWeight: 'bold',
-    color: '#333',
+    fontWeight: "bold",
+    color: "#333",
     marginBottom: 4,
   },
   sectionSubtitle: {
     fontSize: 14,
-    color: '#666',
+    color: "#666",
   },
   emptyCard: {
     margin: 16,
     padding: 32,
     borderRadius: 16,
-    backgroundColor: '#FFF',
-    alignItems: 'center',
+    backgroundColor: "#FFF",
+    alignItems: "center",
   },
   emptyText: {
     fontSize: 16,
-    color: '#999',
+    color: "#999",
     marginTop: 12,
   },
   repCard: {
@@ -614,33 +716,33 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     padding: 16,
     borderRadius: 16,
-    backgroundColor: '#FFF',
+    backgroundColor: "#FFF",
   },
   repHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
   },
   repInfo: {
-    flexDirection: 'row',
+    flexDirection: "row",
     flex: 1,
   },
   avatarContainer: {
-    position: 'relative',
+    position: "relative",
   },
   avatar: {
-    backgroundColor: '#2196F3',
+    backgroundColor: "#2196F3",
   },
   onlineDot: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 2,
     right: 2,
     width: 14,
     height: 14,
     borderRadius: 7,
-    backgroundColor: '#4CAF50',
+    backgroundColor: "#4CAF50",
     borderWidth: 2,
-    borderColor: '#FFF',
+    borderColor: "#FFF",
   },
   repDetails: {
     marginLeft: 12,
@@ -648,18 +750,18 @@ const styles = StyleSheet.create({
   },
   repName: {
     fontSize: 16,
-    fontWeight: 'bold',
-    color: '#333',
+    fontWeight: "bold",
+    color: "#333",
     marginBottom: 2,
   },
   repPhone: {
     fontSize: 13,
-    color: '#666',
+    color: "#666",
     marginBottom: 6,
   },
   statusRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
   },
   statusChip: {
@@ -667,15 +769,15 @@ const styles = StyleSheet.create({
   },
   lastSeenText: {
     fontSize: 12,
-    color: '#999',
+    color: "#999",
   },
   locationButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#E3F2FD',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "#E3F2FD",
+    alignItems: "center",
+    justifyContent: "center",
   },
   divider: {
     marginVertical: 12,
@@ -684,39 +786,39 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   assignmentHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
   },
   assignmentTitle: {
     fontSize: 15,
-    fontWeight: '600',
-    color: '#333',
+    fontWeight: "600",
+    color: "#333",
   },
   progressSection: {
     gap: 8,
   },
   progressInfo: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    justifyContent: "space-between",
   },
   progressText: {
     fontSize: 13,
-    color: '#666',
+    color: "#666",
   },
   progressPercent: {
     fontSize: 13,
-    fontWeight: 'bold',
-    color: '#4CAF50',
+    fontWeight: "bold",
+    color: "#4CAF50",
   },
   progressBarContainer: {
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#E0E0E0',
-    overflow: 'hidden',
+    backgroundColor: "#E0E0E0",
+    overflow: "hidden",
   },
   progressBarFill: {
-    height: '100%',
+    height: "100%",
     borderRadius: 4,
   },
   stopsInfo: {
@@ -724,7 +826,7 @@ const styles = StyleSheet.create({
   },
   stopsText: {
     fontSize: 12,
-    color: '#666',
+    color: "#666",
   },
 });
 
