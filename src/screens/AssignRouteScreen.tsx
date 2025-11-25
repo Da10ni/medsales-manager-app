@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import {
   View,
   StyleSheet,
@@ -7,7 +7,7 @@ import {
   Alert,
   Platform,
   Modal,
-} from 'react-native';
+} from "react-native";
 import {
   Text,
   Surface,
@@ -17,12 +17,12 @@ import {
   Checkbox,
   Divider,
   TextInput,
-} from 'react-native-paper';
-import { LinearGradient } from 'expo-linear-gradient';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useSelector } from 'react-redux';
-import { RootState } from '../redux/store';
-import DateTimePicker from '@react-native-community/datetimepicker';
+} from "react-native-paper";
+import { LinearGradient } from "expo-linear-gradient";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { useSelector } from "react-redux";
+import { RootState } from "../redux/store";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import {
   collection,
   getDocs,
@@ -31,8 +31,8 @@ import {
   doc,
   setDoc,
   Timestamp,
-} from 'firebase/firestore';
-import { db } from '../services/firebase';
+} from "firebase/firestore";
+import { db } from "../services/firebase";
 
 interface Route {
   id: string;
@@ -70,12 +70,37 @@ interface Assignment {
 }
 
 const activityTypes = [
-  { value: 'visit', label: 'Visit', icon: 'map-marker-check', color: '#4CAF50' },
-  { value: 'follow-up', label: 'Follow Up', icon: 'phone-check', color: '#2196F3' },
-  { value: 'take-order', label: 'Take Order', icon: 'cart-plus', color: '#FF9800' },
-  { value: 'stock-check', label: 'Stock Check', icon: 'package-variant', color: '#9C27B0' },
-  { value: 'promote', label: 'Promote', icon: 'bullhorn', color: '#F44336' },
-  { value: 'delivery', label: 'Delivery', icon: 'truck-delivery', color: '#00BCD4' },
+  {
+    value: "visit",
+    label: "Visit",
+    icon: "map-marker-check",
+    color: "#4CAF50",
+  },
+  {
+    value: "follow-up",
+    label: "Follow Up",
+    icon: "phone-check",
+    color: "#2196F3",
+  },
+  {
+    value: "take-order",
+    label: "Take Order",
+    icon: "cart-plus",
+    color: "#FF9800",
+  },
+  {
+    value: "stock-check",
+    label: "Stock Check",
+    icon: "package-variant",
+    color: "#9C27B0",
+  },
+  { value: "promote", label: "Promote", icon: "bullhorn", color: "#F44336" },
+  {
+    value: "delivery",
+    label: "Delivery",
+    icon: "truck-delivery",
+    color: "#00BCD4",
+  },
 ];
 
 const AssignRouteScreen = ({ navigation }: any) => {
@@ -99,14 +124,25 @@ const AssignRouteScreen = ({ navigation }: any) => {
 
   // Activity Dropdown Modal
   const [showActivityModal, setShowActivityModal] = useState(false);
-  const [currentStop, setCurrentStop] = useState<{ repId: string; stopNumber: number } | null>(null);
+  const [currentStop, setCurrentStop] = useState<{
+    repId: string;
+    stopNumber: number;
+  } | null>(null);
+
+  // Add these states at the top (already have useState imported)
+  const [showSalesRepModal, setShowSalesRepModal] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filteredSalesReps, setFilteredSalesReps] = useState<SalesRep[]>([]);
 
   // Fetch routes and sales reps
   useEffect(() => {
     const fetchData = async () => {
       try {
         // Fetch routes
-        const routesQuery = query(collection(db, 'routes'), orderBy('createdAt', 'desc'));
+        const routesQuery = query(
+          collection(db, "routes"),
+          orderBy("createdAt", "desc")
+        );
         const routesSnapshot = await getDocs(routesQuery);
         const routesData = routesSnapshot.docs.map((doc) => ({
           id: doc.id,
@@ -115,7 +151,10 @@ const AssignRouteScreen = ({ navigation }: any) => {
         setRoutes(routesData);
 
         // Fetch sales reps
-        const salesRepsQuery = query(collection(db, 'salesReps'), orderBy('name', 'asc'));
+        const salesRepsQuery = query(
+          collection(db, "salesReps"),
+          orderBy("name", "asc")
+        );
         const salesRepsSnapshot = await getDocs(salesRepsQuery);
         const salesRepsData = salesRepsSnapshot.docs.map((doc) => ({
           id: doc.id,
@@ -123,8 +162,8 @@ const AssignRouteScreen = ({ navigation }: any) => {
         })) as SalesRep[];
         setSalesReps(salesRepsData);
       } catch (error) {
-        console.error('Error fetching data:', error);
-        Alert.alert('Error', 'Failed to load routes and sales reps');
+        console.error("Error fetching data:", error);
+        Alert.alert("Error", "Failed to load routes and sales reps");
       } finally {
         setLoading(false);
       }
@@ -147,13 +186,14 @@ const AssignRouteScreen = ({ navigation }: any) => {
       const allStops = route.distributors.map((_, index) => index + 1);
       const stopDetails = allStops.map((stopNumber) => ({
         stopNumber,
-        activity: 'visit',
-        customInstructions: '',
+        activity: "visit",
+        customInstructions: "",
       }));
       setAssignments([
         {
           salesRepId: selectedSalesReps[0],
-          salesRepName: salesReps.find((r) => r.id === selectedSalesReps[0])?.name || '',
+          salesRepName:
+            salesReps.find((r) => r.id === selectedSalesReps[0])?.name || "",
           stops: allStops,
           stopDetails,
         },
@@ -173,11 +213,13 @@ const AssignRouteScreen = ({ navigation }: any) => {
       if (rep) {
         // If this is the first rep and a route is selected, assign all stops
         if (selectedSalesReps.length === 0 && selectedRoute) {
-          const allStops = selectedRoute.distributors.map((_, index) => index + 1);
+          const allStops = selectedRoute.distributors.map(
+            (_, index) => index + 1
+          );
           const stopDetails = allStops.map((stopNumber) => ({
             stopNumber,
-            activity: 'visit',
-            customInstructions: '',
+            activity: "visit",
+            customInstructions: "",
           }));
           setAssignments([
             {
@@ -212,7 +254,9 @@ const AssignRouteScreen = ({ navigation }: any) => {
             return {
               ...assignment,
               stops: assignment.stops.filter((s) => s !== stopNumber),
-              stopDetails: assignment.stopDetails.filter((d) => d.stopNumber !== stopNumber),
+              stopDetails: assignment.stopDetails.filter(
+                (d) => d.stopNumber !== stopNumber
+              ),
             };
           } else {
             // Add stop with default details
@@ -223,8 +267,8 @@ const AssignRouteScreen = ({ navigation }: any) => {
                 ...assignment.stopDetails,
                 {
                   stopNumber,
-                  activity: 'visit',
-                  customInstructions: '',
+                  activity: "visit",
+                  customInstructions: "",
                 },
               ],
             };
@@ -240,8 +284,8 @@ const AssignRouteScreen = ({ navigation }: any) => {
     const allStops = selectedRoute.distributors.map((_, index) => index + 1);
     const stopDetails = allStops.map((stopNumber) => ({
       stopNumber,
-      activity: 'visit',
-      customInstructions: '',
+      activity: "visit",
+      customInstructions: "",
     }));
     setAssignments(
       assignments.map((assignment) => {
@@ -287,7 +331,11 @@ const AssignRouteScreen = ({ navigation }: any) => {
     setCurrentStop(null);
   };
 
-  const handleInstructionsChange = (repId: string, stopNumber: number, instructions: string) => {
+  const handleInstructionsChange = (
+    repId: string,
+    stopNumber: number,
+    instructions: string
+  ) => {
     setAssignments(
       assignments.map((assignment) => {
         if (assignment.salesRepId === repId) {
@@ -306,23 +354,28 @@ const AssignRouteScreen = ({ navigation }: any) => {
     );
   };
 
-  const getStopDetails = (repId: string, stopNumber: number): StopDetails | undefined => {
+  const getStopDetails = (
+    repId: string,
+    stopNumber: number
+  ): StopDetails | undefined => {
     const assignment = assignments.find((a) => a.salesRepId === repId);
     return assignment?.stopDetails.find((d) => d.stopNumber === stopNumber);
   };
 
   const getActivityInfo = (activityValue: string) => {
-    return activityTypes.find((a) => a.value === activityValue) || activityTypes[0];
+    return (
+      activityTypes.find((a) => a.value === activityValue) || activityTypes[0]
+    );
   };
 
   const validateAssignments = () => {
     if (!selectedRoute) {
-      Alert.alert('Route Required', 'Please select a route');
+      Alert.alert("Route Required", "Please select a route");
       return false;
     }
 
     if (assignments.length === 0) {
-      Alert.alert('Sales Rep Required', 'Please select at least one sales rep');
+      Alert.alert("Sales Rep Required", "Please select at least one sales rep");
       return false;
     }
 
@@ -335,7 +388,7 @@ const AssignRouteScreen = ({ navigation }: any) => {
     const totalStops = selectedRoute.distributors.length;
     if (allStops.size !== totalStops) {
       Alert.alert(
-        'Incomplete Assignment',
+        "Incomplete Assignment",
         `You have only assigned ${allStops.size} out of ${totalStops} stops. Please assign all stops before continuing.`
       );
       return false;
@@ -355,14 +408,16 @@ const AssignRouteScreen = ({ navigation }: any) => {
     const duplicates: string[] = [];
     stopAssignments.forEach((reps, stop) => {
       if (reps.length > 1) {
-        duplicates.push(`Stop ${stop} (${reps.join(', ')})`);
+        duplicates.push(`Stop ${stop} (${reps.join(", ")})`);
       }
     });
 
     if (duplicates.length > 0) {
       Alert.alert(
-        'Duplicate Assignments',
-        `The following stops are assigned to multiple sales reps:\n${duplicates.join('\n')}\n\nPlease ensure each stop is assigned to only one sales rep.`
+        "Duplicate Assignments",
+        `The following stops are assigned to multiple sales reps:\n${duplicates.join(
+          "\n"
+        )}\n\nPlease ensure each stop is assigned to only one sales rep.`
       );
       return false;
     }
@@ -377,47 +432,53 @@ const AssignRouteScreen = ({ navigation }: any) => {
     try {
       // Create assignments in Firestore
       for (const assignment of assignments) {
-        const assignmentId = `assignment_${Date.now()}_${assignment.salesRepId}`;
+        const assignmentId = `assignment_${Date.now()}_${
+          assignment.salesRepId
+        }`;
         const assignedStops = assignment.stops.map((stopNumber) => {
           const dist = selectedRoute!.distributors[stopNumber - 1];
-          const details = assignment.stopDetails.find((d) => d.stopNumber === stopNumber);
+          const details = assignment.stopDetails.find(
+            (d) => d.stopNumber === stopNumber
+          );
           return {
             ...dist,
             stopNumber,
-            activity: details?.activity || 'visit',
-            customInstructions: details?.customInstructions || '',
-            status: 'pending',
+            activity: details?.activity || "visit",
+            customInstructions: details?.customInstructions || "",
+            status: "pending",
           };
         });
 
-        await setDoc(doc(db, 'assignments', assignmentId), {
+        await setDoc(doc(db, "assignments", assignmentId), {
           routeId: selectedRoute!.id,
           routeName: selectedRoute!.name,
           salesRepId: assignment.salesRepId,
           salesRepName: assignment.salesRepName,
-          managerId: manager?.phone || '',
+          managerId: manager?.phone || "",
           date: Timestamp.fromDate(selectedDate),
           stops: assignedStops,
-          status: 'pending',
+          status: "pending",
           createdAt: Timestamp.now(),
         });
       }
 
       Alert.alert(
-        'Success!',
-        `Route "${selectedRoute!.name}" has been assigned to ${assignments.length} sales rep${
-          assignments.length > 1 ? 's' : ''
+        "Success!",
+        `Route "${selectedRoute!.name}" has been assigned to ${
+          assignments.length
+        } sales rep${
+          assignments.length > 1 ? "s" : ""
         } for ${selectedDate.toLocaleDateString()}`,
         [
           {
-            text: 'OK',
+            text: "OK",
             onPress: () => navigation.goBack(),
           },
         ]
       );
     } catch (error: any) {
-      console.error('Error assigning route:', error);
-      Alert.alert('Error', 'Failed to assign route. Please try again.');
+      console.error("Error assigning route:", error);
+      Alert.alert("Error", "Failed to assign route. Please try again.");
     } finally {
       setAssigning(false);
     }
@@ -436,17 +497,22 @@ const AssignRouteScreen = ({ navigation }: any) => {
     <View style={styles.container}>
       {/* Header */}
       <LinearGradient
-        colors={['#2196F3', '#1976D2', '#0D47A1']}
+        colors={["#2196F3", "#1976D2", "#0D47A1"]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.header}
       >
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={styles.backButton}
+        >
           <MaterialCommunityIcons name="arrow-left" size={24} color="#FFF" />
         </TouchableOpacity>
         <View style={styles.headerContent}>
           <Text style={styles.headerTitle}>Assign Route</Text>
-          <Text style={styles.headerSubtitle}>Select date, route, and assign stops to sales reps</Text>
+          <Text style={styles.headerSubtitle}>
+            Select date, route, and assign stops to sales reps
+          </Text>
         </View>
       </LinearGradient>
 
@@ -465,14 +531,18 @@ const AssignRouteScreen = ({ navigation }: any) => {
           >
             <MaterialCommunityIcons name="calendar" size={24} color="#2196F3" />
             <Text style={styles.dateSelectorText}>
-              {selectedDate.toLocaleDateString('en-US', {
-                weekday: 'long',
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric',
+              {selectedDate.toLocaleDateString("en-US", {
+                weekday: "long",
+                year: "numeric",
+                month: "long",
+                day: "numeric",
               })}
             </Text>
-            <MaterialCommunityIcons name="chevron-down" size={24} color="#666" />
+            <MaterialCommunityIcons
+              name="chevron-down"
+              size={24}
+              color="#666"
+            />
           </TouchableOpacity>
           {showDatePicker && (
             <DateTimePicker
@@ -507,9 +577,13 @@ const AssignRouteScreen = ({ navigation }: any) => {
               >
                 <View style={styles.routeItemLeft}>
                   <MaterialCommunityIcons
-                    name={selectedRoute?.id === route.id ? 'radiobox-marked' : 'radiobox-blank'}
+                    name={
+                      selectedRoute?.id === route.id
+                        ? "radiobox-marked"
+                        : "radiobox-blank"
+                    }
                     size={24}
-                    color={selectedRoute?.id === route.id ? '#2196F3' : '#999'}
+                    color={selectedRoute?.id === route.id ? "#2196F3" : "#999"}
                   />
                   <View style={styles.routeItemInfo}>
                     <Text style={styles.routeItemName}>{route.name}</Text>
@@ -530,12 +604,126 @@ const AssignRouteScreen = ({ navigation }: any) => {
               <View style={styles.stepBadge}>
                 <Text style={styles.stepBadgeText}>3</Text>
               </View>
-              <Text style={styles.sectionTitle}>Assign Stops to Sales Reps</Text>
+              <Text style={styles.sectionTitle}>
+                Assign Stops to Sales Reps
+              </Text>
             </View>
 
             {/* Sales Rep Selection */}
-            <Text style={styles.subsectionTitle}>Select Sales Representatives</Text>
-            {salesReps.length === 0 ? (
+            <TouchableOpacity
+            style={styles.subsectionTitle}
+              onPress={() => {
+                setFilteredSalesReps(salesReps);
+                setSearchQuery("");
+                setShowSalesRepModal(true);
+              }}
+            >
+              <Text style={styles.subsectionTitle}>
+                Select Sales Representatives
+              </Text>
+            </TouchableOpacity>
+
+            {/* Sales Rep Selection Modal */}
+            <Modal
+              visible={showSalesRepModal}
+              animationType="slide"
+              transparent={false}
+              onRequestClose={() => setShowSalesRepModal(false)}
+            >
+              <View
+                style={{ flex: 1, backgroundColor: "#fff", paddingTop: 50 }}
+              >
+                {/* Header */}
+                <View
+                  style={{
+                    flexDirection: "row",
+                    justifyContent: "space-between",
+                    padding: 16,
+                    borderBottomWidth: 1,
+                    borderBottomColor: "#E0E0E0",
+                  }}
+                >
+                  <Text style={{ fontSize: 20, fontWeight: "bold" }}>
+                    Select Sales Reps
+                  </Text>
+                  <Button onPress={() => setShowSalesRepModal(false)}>
+                    Done
+                  </Button>
+                </View>
+
+                {/* Search Bar */}
+                <TextInput
+                  mode="outlined"
+                  placeholder="Search by name or phone..."
+                  value={searchQuery}
+                  onChangeText={(text) => {
+                    setSearchQuery(text);
+                    const filtered = salesReps.filter(
+                      (rep) =>
+                        rep.name.toLowerCase().includes(text.toLowerCase()) ||
+                        rep.phone.includes(text)
+                    );
+                    setFilteredSalesReps(filtered);
+                  }}
+                  style={{ margin: 16 }}
+                  outlineColor="#E0E0E0"
+                  activeOutlineColor="#2196F3"
+                />
+
+                {/* Sales Reps List */}
+                <ScrollView style={{ flex: 1, paddingHorizontal: 16 }}>
+                  {filteredSalesReps.length === 0 ? (
+                    <Text
+                      style={{
+                        textAlign: "center",
+                        marginTop: 20,
+                        color: "#999",
+                      }}
+                    >
+                      No sales reps found
+                    </Text>
+                  ) : (
+                    filteredSalesReps.map((rep) => (
+                      <TouchableOpacity
+                        key={rep.id}
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          paddingVertical: 12,
+                        }}
+                        onPress={() => handleSalesRepToggle(rep.id)}
+                      >
+                        <Checkbox
+                          status={
+                            selectedSalesReps.includes(rep.id)
+                              ? "checked"
+                              : "unchecked"
+                          }
+                          onPress={() => handleSalesRepToggle(rep.id)}
+                          color="#2196F3"
+                        />
+                        <View style={{ marginLeft: 12 }}>
+                          <Text style={{ fontSize: 16, fontWeight: "600" }}>
+                            {rep.name}
+                          </Text>
+                          <Text
+                            style={{
+                              fontSize: 12,
+                              color: "#666",
+                              marginTop: 2,
+                            }}
+                          >
+                            {rep.phone}
+                          </Text>
+                        </View>
+                      </TouchableOpacity>
+                    ))
+                  )}
+                </ScrollView>
+              </View>
+            </Modal>
+
+            {/* {salesReps.length === 0 ? (
               <Text style={styles.emptyText}>No sales reps available</Text>
             ) : (
               salesReps.map((rep) => (
@@ -545,7 +733,11 @@ const AssignRouteScreen = ({ navigation }: any) => {
                   onPress={() => handleSalesRepToggle(rep.id)}
                 >
                   <Checkbox
-                    status={selectedSalesReps.includes(rep.id) ? 'checked' : 'unchecked'}
+                    status={
+                      selectedSalesReps.includes(rep.id)
+                        ? "checked"
+                        : "unchecked"
+                    }
                     onPress={() => handleSalesRepToggle(rep.id)}
                     color="#2196F3"
                   />
@@ -555,22 +747,31 @@ const AssignRouteScreen = ({ navigation }: any) => {
                   </View>
                 </TouchableOpacity>
               ))
-            )}
+            )} */}
 
             <Divider style={styles.divider} />
 
             {/* Stop Assignment for each selected rep */}
             {assignments.length > 0 && (
               <>
-                <Text style={styles.subsectionTitle}>Assign Stops & Activities</Text>
+                <Text style={styles.subsectionTitle}>
+                  Assign Stops & Activities
+                </Text>
                 {assignments.map((assignment) => (
-                  <View key={assignment.salesRepId} style={styles.assignmentCard}>
+                  <View
+                    key={assignment.salesRepId}
+                    style={styles.assignmentCard}
+                  >
                     <View style={styles.assignmentHeader}>
-                      <Text style={styles.assignmentRepName}>{assignment.salesRepName}</Text>
+                      <Text style={styles.assignmentRepName}>
+                        {assignment.salesRepName}
+                      </Text>
                       <View style={styles.assignmentActions}>
                         <Button
                           mode="text"
-                          onPress={() => handleSelectAllStops(assignment.salesRepId)}
+                          onPress={() =>
+                            handleSelectAllStops(assignment.salesRepId)
+                          }
                           compact
                           textColor="#2196F3"
                         >
@@ -578,7 +779,9 @@ const AssignRouteScreen = ({ navigation }: any) => {
                         </Button>
                         <Button
                           mode="text"
-                          onPress={() => handleDeselectAllStops(assignment.salesRepId)}
+                          onPress={() =>
+                            handleDeselectAllStops(assignment.salesRepId)
+                          }
                           compact
                           textColor="#F44336"
                         >
@@ -591,23 +794,39 @@ const AssignRouteScreen = ({ navigation }: any) => {
                     <View style={styles.stopsList}>
                       {selectedRoute.distributors.map((dist, idx) => {
                         const stopNumber = idx + 1;
-                        const isSelected = assignment.stops.includes(stopNumber);
-                        const stopDetails = getStopDetails(assignment.salesRepId, stopNumber);
-                        const activityInfo = stopDetails ? getActivityInfo(stopDetails.activity) : activityTypes[0];
+                        const isSelected =
+                          assignment.stops.includes(stopNumber);
+                        const stopDetails = getStopDetails(
+                          assignment.salesRepId,
+                          stopNumber
+                        );
+                        const activityInfo = stopDetails
+                          ? getActivityInfo(stopDetails.activity)
+                          : activityTypes[0];
 
                         return (
                           <View key={dist.id} style={styles.stopItemContainer}>
                             {/* Stop Header with Checkbox */}
                             <View style={styles.stopHeader}>
                               <Checkbox
-                                status={isSelected ? 'checked' : 'unchecked'}
-                                onPress={() => handleStopToggle(assignment.salesRepId, stopNumber)}
+                                status={isSelected ? "checked" : "unchecked"}
+                                onPress={() =>
+                                  handleStopToggle(
+                                    assignment.salesRepId,
+                                    stopNumber
+                                  )
+                                }
                                 color="#2196F3"
                               />
                               <View style={styles.stopHeaderInfo}>
-                                <Text style={styles.stopNumber}>Stop {stopNumber}</Text>
+                                <Text style={styles.stopNumber}>
+                                  Stop {stopNumber}
+                                </Text>
                                 <Text style={styles.stopName}>{dist.name}</Text>
-                                <Text style={styles.stopAddress} numberOfLines={1}>
+                                <Text
+                                  style={styles.stopAddress}
+                                  numberOfLines={1}
+                                >
                                   {dist.address}
                                 </Text>
                               </View>
@@ -617,11 +836,16 @@ const AssignRouteScreen = ({ navigation }: any) => {
                             {isSelected && (
                               <View style={styles.stopDetails}>
                                 {/* Activity Dropdown */}
-                                <Text style={styles.fieldLabel}>Activity Type</Text>
+                                <Text style={styles.fieldLabel}>
+                                  Activity Type
+                                </Text>
                                 <TouchableOpacity
                                   style={styles.activitySelector}
                                   onPress={() => {
-                                    setCurrentStop({ repId: assignment.salesRepId, stopNumber });
+                                    setCurrentStop({
+                                      repId: assignment.salesRepId,
+                                      stopNumber,
+                                    });
                                     setShowActivityModal(true);
                                   }}
                                 >
@@ -630,18 +854,30 @@ const AssignRouteScreen = ({ navigation }: any) => {
                                     size={20}
                                     color={activityInfo.color}
                                   />
-                                  <Text style={styles.activityText}>{activityInfo.label}</Text>
-                                  <MaterialCommunityIcons name="chevron-down" size={20} color="#666" />
+                                  <Text style={styles.activityText}>
+                                    {activityInfo.label}
+                                  </Text>
+                                  <MaterialCommunityIcons
+                                    name="chevron-down"
+                                    size={20}
+                                    color="#666"
+                                  />
                                 </TouchableOpacity>
 
                                 {/* Custom Instructions */}
-                                <Text style={styles.fieldLabel}>Custom Instructions</Text>
+                                <Text style={styles.fieldLabel}>
+                                  Custom Instructions
+                                </Text>
                                 <TextInput
                                   mode="outlined"
                                   placeholder="Enter custom instructions for this stop (optional)"
-                                  value={stopDetails?.customInstructions || ''}
+                                  value={stopDetails?.customInstructions || ""}
                                   onChangeText={(text) =>
-                                    handleInstructionsChange(assignment.salesRepId, stopNumber, text)
+                                    handleInstructionsChange(
+                                      assignment.salesRepId,
+                                      stopNumber,
+                                      text
+                                    )
                                   }
                                   multiline
                                   numberOfLines={2}
@@ -658,9 +894,14 @@ const AssignRouteScreen = ({ navigation }: any) => {
 
                     {assignment.stops.length > 0 && (
                       <View style={styles.selectedStopsInfo}>
-                        <MaterialCommunityIcons name="check-circle" size={16} color="#4CAF50" />
+                        <MaterialCommunityIcons
+                          name="check-circle"
+                          size={16}
+                          color="#4CAF50"
+                        />
                         <Text style={styles.selectedStopsText}>
-                          {assignment.stops.length} stop{assignment.stops.length > 1 ? 's' : ''} assigned
+                          {assignment.stops.length} stop
+                          {assignment.stops.length > 1 ? "s" : ""} assigned
                         </Text>
                       </View>
                     )}
@@ -686,7 +927,7 @@ const AssignRouteScreen = ({ navigation }: any) => {
             buttonColor="#2196F3"
             icon="check"
           >
-            {assigning ? 'Assigning...' : 'Assign Route'}
+            {assigning ? "Assigning..." : "Assign Route"}
           </Button>
         </View>
       )}
@@ -718,7 +959,11 @@ const AssignRouteScreen = ({ navigation }: any) => {
                   color={activity.color}
                 />
                 <Text style={styles.activityOptionText}>{activity.label}</Text>
-                <MaterialCommunityIcons name="chevron-right" size={20} color="#999" />
+                <MaterialCommunityIcons
+                  name="chevron-right"
+                  size={20}
+                  color="#999"
+                />
               </TouchableOpacity>
             ))}
             <Button
@@ -738,18 +983,18 @@ const AssignRouteScreen = ({ navigation }: any) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8F9FA',
+    backgroundColor: "#F8F9FA",
   },
   loadingContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#F8F9FA',
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#F8F9FA",
   },
   loadingText: {
     marginTop: 16,
     fontSize: 16,
-    color: '#666',
+    color: "#666",
   },
   header: {
     paddingTop: 50,
@@ -762,9 +1007,9 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    alignItems: "center",
+    justifyContent: "center",
     marginBottom: 16,
   },
   headerContent: {
@@ -772,12 +1017,12 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 28,
-    fontWeight: 'bold',
-    color: '#FFF',
+    fontWeight: "bold",
+    color: "#FFF",
   },
   headerSubtitle: {
     fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.9)',
+    color: "rgba(255, 255, 255, 0.9)",
   },
   content: {
     flex: 1,
@@ -787,73 +1032,73 @@ const styles = StyleSheet.create({
     margin: 16,
     padding: 20,
     borderRadius: 16,
-    backgroundColor: '#FFF',
+    backgroundColor: "#FFF",
   },
   sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: 16,
   },
   stepBadge: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: '#2196F3',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "#2196F3",
+    alignItems: "center",
+    justifyContent: "center",
     marginRight: 12,
   },
   stepBadgeText: {
-    color: '#FFF',
+    color: "#FFF",
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
+    fontWeight: "bold",
+    color: "#333",
   },
   subsectionTitle: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
+    fontWeight: "600",
+    color: "#333",
     marginTop: 16,
     marginBottom: 12,
   },
   dateSelector: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     padding: 16,
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: "#E0E0E0",
     borderRadius: 12,
-    backgroundColor: '#FAFAFA',
+    backgroundColor: "#FAFAFA",
   },
   dateSelectorText: {
     flex: 1,
     marginLeft: 12,
     fontSize: 16,
-    color: '#333',
+    color: "#333",
   },
   routeItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     padding: 16,
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: "#E0E0E0",
     borderRadius: 12,
     marginBottom: 12,
-    backgroundColor: '#FAFAFA',
+    backgroundColor: "#FAFAFA",
   },
   routeItemSelected: {
-    borderColor: '#2196F3',
+    borderColor: "#2196F3",
     borderWidth: 2,
-    backgroundColor: '#E3F2FD',
+    backgroundColor: "#E3F2FD",
   },
   routeItemLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     flex: 1,
   },
   routeItemInfo: {
@@ -861,17 +1106,17 @@ const styles = StyleSheet.create({
   },
   routeItemName: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
+    fontWeight: "600",
+    color: "#333",
   },
   routeItemStops: {
     fontSize: 12,
-    color: '#666',
+    color: "#666",
     marginTop: 4,
   },
   salesRepItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingVertical: 12,
   },
   salesRepInfo: {
@@ -879,12 +1124,12 @@ const styles = StyleSheet.create({
   },
   salesRepName: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
+    fontWeight: "600",
+    color: "#333",
   },
   salesRepPhone: {
     fontSize: 12,
-    color: '#666',
+    color: "#666",
     marginTop: 2,
   },
   divider: {
@@ -893,24 +1138,24 @@ const styles = StyleSheet.create({
   assignmentCard: {
     padding: 16,
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: "#E0E0E0",
     borderRadius: 12,
     marginBottom: 16,
-    backgroundColor: '#FAFAFA',
+    backgroundColor: "#FAFAFA",
   },
   assignmentHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 16,
   },
   assignmentRepName: {
     fontSize: 16,
-    fontWeight: 'bold',
-    color: '#333',
+    fontWeight: "bold",
+    color: "#333",
   },
   assignmentActions: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 8,
   },
   stopsList: {
@@ -918,14 +1163,14 @@ const styles = StyleSheet.create({
   },
   stopItemContainer: {
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: "#E0E0E0",
     borderRadius: 12,
     padding: 12,
-    backgroundColor: '#FFF',
+    backgroundColor: "#FFF",
   },
   stopHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
   stopHeaderInfo: {
     flex: 1,
@@ -933,80 +1178,80 @@ const styles = StyleSheet.create({
   },
   stopNumber: {
     fontSize: 12,
-    fontWeight: '600',
-    color: '#2196F3',
+    fontWeight: "600",
+    color: "#2196F3",
     marginBottom: 2,
   },
   stopName: {
     fontSize: 15,
-    fontWeight: '600',
-    color: '#333',
+    fontWeight: "600",
+    color: "#333",
     marginBottom: 2,
   },
   stopAddress: {
     fontSize: 12,
-    color: '#666',
+    color: "#666",
   },
   stopDetails: {
     marginTop: 12,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: '#F0F0F0',
+    borderTopColor: "#F0F0F0",
   },
   fieldLabel: {
     fontSize: 13,
-    fontWeight: '600',
-    color: '#333',
+    fontWeight: "600",
+    color: "#333",
     marginBottom: 8,
     marginTop: 8,
   },
   activitySelector: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     padding: 12,
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: "#E0E0E0",
     borderRadius: 8,
-    backgroundColor: '#FFF',
+    backgroundColor: "#FFF",
     marginBottom: 8,
   },
   activityText: {
     flex: 1,
     marginLeft: 12,
     fontSize: 15,
-    color: '#333',
-    fontWeight: '500',
+    color: "#333",
+    fontWeight: "500",
   },
   instructionsInput: {
-    backgroundColor: '#FFF',
+    backgroundColor: "#FFF",
     fontSize: 14,
     marginBottom: 8,
   },
   selectedStopsInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginTop: 12,
     padding: 12,
-    backgroundColor: '#E8F5E9',
+    backgroundColor: "#E8F5E9",
     borderRadius: 8,
   },
   selectedStopsText: {
     flex: 1,
     marginLeft: 8,
     fontSize: 12,
-    color: '#2E7D32',
+    color: "#2E7D32",
   },
   emptyText: {
     fontSize: 14,
-    color: '#999',
-    textAlign: 'center',
+    color: "#999",
+    textAlign: "center",
     paddingVertical: 20,
   },
   footer: {
     padding: 16,
-    backgroundColor: '#FFF',
+    backgroundColor: "#FFF",
     borderTopWidth: 1,
-    borderTopColor: '#E0E0E0',
+    borderTopColor: "#E0E0E0",
   },
   assignButton: {
     borderRadius: 12,
@@ -1014,39 +1259,39 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
     padding: 20,
   },
   modalContent: {
-    backgroundColor: '#FFF',
+    backgroundColor: "#FFF",
     borderRadius: 16,
     padding: 20,
-    width: '100%',
+    width: "100%",
     maxWidth: 400,
   },
   modalTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
+    fontWeight: "bold",
+    color: "#333",
     marginBottom: 8,
   },
   modalDivider: {
     marginBottom: 16,
   },
   activityOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
+    borderBottomColor: "#F0F0F0",
   },
   activityOptionText: {
     flex: 1,
     marginLeft: 16,
     fontSize: 16,
-    color: '#333',
+    color: "#333",
   },
   modalCancelButton: {
     marginTop: 12,
