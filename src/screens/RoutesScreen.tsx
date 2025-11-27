@@ -1048,6 +1048,7 @@ const RoutesScreen = ({ navigation }: any) => {
                             textStyle={{
                               color: getTypeInfo(dist.type).color,
                               fontSize: 10,
+                              height:30,
                             }}
                           >
                             {getTypeInfo(dist.type).label}
@@ -1064,6 +1065,8 @@ const RoutesScreen = ({ navigation }: any) => {
                             textStyle={{
                               color: getRouteTypeInfo(dist.routeType).color,
                               fontSize: 10,
+                              height:30,
+
                             }}
                           >
                             {getRouteTypeInfo(dist.routeType).label}
@@ -1488,6 +1491,7 @@ const RoutesScreen = ({ navigation }: any) => {
                             textStyle={{
                               color: getTypeInfo(dist.type).color,
                               fontSize: 10,
+                              height:30
                             }}
                           >
                             {getTypeInfo(dist.type).label}
@@ -1504,6 +1508,8 @@ const RoutesScreen = ({ navigation }: any) => {
                             textStyle={{
                               color: getRouteTypeInfo(dist.routeType).color,
                               fontSize: 10,
+                              height:30
+
                             }}
                           >
                             {getRouteTypeInfo(dist.routeType).label}
@@ -1844,7 +1850,8 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   distItemChip: {
-    height: 22,
+    height: 40,
+    textAlign:'center'
   },
   distItemDelete: {
     padding: 4,
@@ -1861,6 +1868,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingVertical: 4,
     borderColor: "#E0E0E0",
+    marginBottom:20
   },
   typeSelector: {
     flexDirection: "row",

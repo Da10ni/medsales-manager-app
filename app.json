@@ -7,6 +7,7 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
+    "projectId": "fc689221-4ed9-4b42-a501-6fd2ac4565d7",
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
@@ -26,13 +27,21 @@
         "googleMaps": {
           "apiKey": ""
         }
-      }
+      },
+      "package": "com.dani43.managerapp"
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "react-native-maps"
+      "react-native-maps",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#ffffff"
+        }
+      ]
     ]
   }
 }

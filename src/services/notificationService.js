@@ -1,400 +1,450 @@
+/**
+ * Notification Service for Manager App
+ *
+ * Manager app se Sales Reps ko notifications bhejne ke liye
+ * Future me Manager ko bhi notifications receive karni hon to yahan add kar sakte hain
+ */
 
+import { doc, getDoc, collection, addDoc, Timestamp } from 'firebase/firestore';
+import { db } from './firebase';
 
-import * as Device from "expo-device";
-import * as Notifications from "expo-notifications";
-import Constants from "expo-constants";
-import { doc, getFirestore, serverTimestamp, setDoc, getDoc } from "firebase/firestore";
-import { Platform } from "react-native";
-import { getDataFromDb } from "./firebaseServices";
+// =============================================================================
+// NOTIFICATION TYPES - Future ke liye easy to extend
+// =============================================================================
 
-// ✅ ADDED: Firestore data fetching function
-const getDataFromFirestore = async (collectionName, documentId) => {
-  try {
-    console.log(`🟡 Fetching from Firestore: ${collectionName}/${documentId}`);
-    
-    const db = getFirestore();
-    const docRef = doc(db, collectionName, documentId);
-    const docSnap = await getDoc(docRef);
-
-    if (docSnap.exists()) {
-      console.log(`✅ Document found in Firestore: ${documentId}`);
-      return { id: docSnap.id, ...docSnap.data() };
-    } else {
-      console.log(`❌ No document found in Firestore: ${documentId}`);
-      return null;
-    }
-  } catch (error) {
-    console.error("❌ Error fetching from Firestore:", error);
-    throw error;
-  }
+/**
+ * Notification types enum - Add new types here as needed
+ */
+export const NOTIFICATION_TYPES = {
+  ROUTE_ASSIGNED: 'route_assigned',
+  ROUTE_UPDATED: 'route_updated',
+  ROUTE_COMPLETED: 'route_completed',     // Future: jab sales rep complete kare
+  VISIT_COMPLETED: 'visit_completed',     // Future: jab sales rep visit kare
+  ORDER_PLACED: 'order_placed',           // Future: jab order place ho
 };
 
-// Configure notifications
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-  }),
-});
-
-export const setupNotificationChannel = async () => {
-  if (Platform.OS === "android") {
-    try {
-      await Notifications.setNotificationChannelAsync("default", {
-        name: "Default Notifications",
-        importance: Notifications.AndroidImportance.MAX,
-        vibrationPattern: [0, 250, 250, 250],
-        lightColor: "#FF231F7C",
-        sound: "default",
-        enableVibrate: true,
-        showBadge: true,
-      });
-      console.log("✅ Android notification channel created");
-      return true;
-    } catch (error) {
-      console.error("❌ Error creating notification channel:", error);
-      return false;
-    }
-  }
-  return true;
+/**
+ * Notification templates - Pre-defined messages
+ */
+export const NOTIFICATION_TEMPLATES = {
+  [NOTIFICATION_TYPES.ROUTE_ASSIGNED]: {
+    title: 'New Route Assigned!',
+    getBody: (data) => `You have been assigned to route: ${data.routeName} with ${data.stopsCount} stops`,
+  },
+  [NOTIFICATION_TYPES.ROUTE_UPDATED]: {
+    title: 'Route Updated',
+    getBody: (data) => `Route "${data.routeName}" has been updated`,
+  },
+  [NOTIFICATION_TYPES.ROUTE_COMPLETED]: {
+    title: 'Route Completed',
+    getBody: (data) => `${data.salesRepName} has completed route: ${data.routeName}`,
+  },
+  [NOTIFICATION_TYPES.VISIT_COMPLETED]: {
+    title: 'Visit Completed',
+    getBody: (data) => `${data.salesRepName} visited ${data.distributorName}`,
+  },
+  [NOTIFICATION_TYPES.ORDER_PLACED]: {
+    title: 'New Order Placed',
+    getBody: (data) => `Order of Rs. ${data.amount} placed at ${data.distributorName}`,
+  },
 };
 
-export const requestUserPermission = async () => {
-  try {
-    if (!Device.isDevice) {
-      console.log("⚠️ Must use physical device for Push Notifications");
-      return false;
-    }
+// =============================================================================
+// MAIN NOTIFICATION FUNCTIONS
+// =============================================================================
 
-    const { status: existingStatus } = await Notifications.getPermissionsAsync();
-    let finalStatus = existingStatus;
-
-    if (existingStatus !== "granted") {
-      console.log("📱 Requesting notification permission...");
-      const { status } = await Notifications.requestPermissionsAsync();
-      finalStatus = status;
-    }
-
-    if (finalStatus !== "granted") {
-      console.log("❌ Notification Permission DENIED by user");
-      return false;
-    }
-
-    console.log("✅ Notification permission granted");
-    return true;
-  } catch (error) {
-    console.error("❌ Error requesting notification permission:", error);
-    return false;
-  }
-};
-
-// MAIN FUNCTION - Get real Expo push token
-export const getExpoPushToken = async (userId) => {
-  console.log("🚀 STARTING REAL EXPO PUSH TOKEN PROCESS");
+/**
+ * Sales Rep ko push notification bhejne ka main function
+ *
+ * @param {string} salesRepId - Sales rep ka document ID (phone number)
+ * @param {object} notificationData - Notification data object
+ * @param {string} notificationData.title - Notification title
+ * @param {string} notificationData.message - Notification body message
+ * @param {object} notificationData.data - Extra data jo notification ke sath jaaye
+ * @param {boolean} saveLog - Firestore me log save karna hai ya nahi (default: true)
+ * @returns {Promise<{success: boolean, error?: string, result?: object}>}
+ */
+export async function sendPushNotification(salesRepId, notificationData, saveLog = true) {
+  // Debug log - Start
+  console.log('========================================');
+  console.log('📤 NOTIFICATION SERVICE - START');
+  console.log('========================================');
+  console.log('📍 Target Sales Rep ID:', salesRepId);
+  console.log('📝 Notification Data:', JSON.stringify(notificationData, null, 2));
 
   try {
-    // 1. Must be physical device
-    if (!Device.isDevice) {
-      console.log("❌ Cannot get real push tokens on simulator/emulator");
-      console.log("💡 Test on a REAL Android/iOS device");
-      return null;
+    // Step 1: Sales Rep ka data fetch karo
+    console.log('\n🔍 Step 1: Fetching sales rep data...');
+    const salesRepDoc = await getDoc(doc(db, 'salesReps', salesRepId));
+
+    if (!salesRepDoc.exists()) {
+      console.error('❌ Sales rep not found in database:', salesRepId);
+      return {
+        success: false,
+        error: 'SALES_REP_NOT_FOUND',
+        message: `Sales rep with ID "${salesRepId}" not found in database`
+      };
     }
 
-    // 2. Get permission
-    console.log("🔔 Checking notification permission...");
-    const hasPermission = await requestUserPermission();
-    if (!hasPermission) {
-      console.log("❌ User denied notification permission");
-      return null;
-    }
-
-    // 3. Setup Android channel
-    await setupNotificationChannel();
-
-    // 4. Get the correct projectId from app.json
-    const projectId = Constants.expoConfig?.extra?.eas?.projectId;
-    console.log("📋 Project ID from app.json:", projectId);
-
-    if (!projectId) {
-      console.log("❌ No projectId found in app.json");
-      console.log("💡 Add your correct Project ID from expo.dev to app.json");
-      return null;
-    }
-
-    // 5. Get Expo Push Token with projectId
-    console.log("🎫 Requesting Expo Push Token...");
-    const tokenData = await Notifications.getExpoPushTokenAsync({
-      projectId: projectId
+    const salesRepData = salesRepDoc.data();
+    console.log('✅ Sales Rep Found:', {
+      id: salesRepId,
+      name: salesRepData?.name || 'N/A',
+      phone: salesRepData?.phone || 'N/A',
+      platform: salesRepData?.platform || 'N/A',
     });
 
-    const expoPushToken = tokenData?.data;
-    
-    // 6. Validate the token
+    // Step 2: Push token check karo
+    console.log('\n🔍 Step 2: Checking push token...');
+    const expoPushToken = salesRepData?.expoPushToken;
+
     if (!expoPushToken) {
-      console.log("❌ No token received from Expo");
-      return null;
-    }
+      console.warn('⚠️ No push token found for sales rep');
+      console.warn('💡 Sales Rep needs to open the app to register for notifications');
 
-    if (!expoPushToken.startsWith('ExponentPushToken')) {
-      console.log("❌ Invalid token format:", expoPushToken);
-      return null;
-    }
-
-    console.log("🎉 REAL EXPO PUSH TOKEN OBTAINED!");
-    console.log("🔑 Token:", expoPushToken);
-    console.log("📱 Platform:", Platform.OS);
-
-    // 7. Save to Firestore - ✅ FIXED: Use 'users' collection consistently
-    if (userId) {
-      try {
-        const db = getFirestore();
-        await setDoc(
-          doc(db, "users", userId), // ✅ CHANGED: 'user' to 'users'
-          {
-            expoPushToken: expoPushToken,
-            platform: Platform.OS,
-            updatedAt: serverTimestamp(),
-          },
-          { merge: true }
-        );
-        console.log("💾 Token saved to Firestore for user:", userId);
-      } catch (firestoreError) {
-        console.error("❌ Firestore save error:", firestoreError);
-        // Still return token even if save fails
+      // Log save karo with error
+      if (saveLog) {
+        await saveNotificationLog({
+          salesRepId,
+          salesRepName: salesRepData?.name || 'Unknown',
+          notificationData,
+          status: 'failed',
+          error: 'NO_PUSH_TOKEN',
+          platform: salesRepData?.platform || 'unknown',
+        });
       }
+
+      return {
+        success: false,
+        error: 'NO_PUSH_TOKEN',
+        message: 'Sales Rep has not registered for push notifications'
+      };
     }
 
-    return expoPushToken;
-
-  } catch (error) {
-    console.error("❌ ERROR GETTING PUSH TOKEN:");
-    console.error("Error message:", error.message);
-    console.error("Full error:", error);
-    
-    return null;
-  }
-};
-
-export const notificationListener = () => {
-  const foregroundSubscription = Notifications.addNotificationReceivedListener(
-    (notification) => {
-      console.log("📬 Notification received in foreground:", notification);
+    // Step 3: Token format validate karo
+    console.log('\n🔍 Step 3: Validating token format...');
+    if (!expoPushToken.startsWith('ExponentPushToken[')) {
+      console.error('❌ Invalid token format:', expoPushToken);
+      return {
+        success: false,
+        error: 'INVALID_TOKEN_FORMAT',
+        message: 'Push token format is invalid'
+      };
     }
-  );
+    console.log('✅ Token format valid:', expoPushToken.substring(0, 30) + '...');
 
-  const responseSubscription = Notifications.addNotificationResponseReceivedListener((response) => {
-    console.log("👆 User tapped notification:", response);
-  });
+    // Step 4: Notification bhejo
+    console.log('\n📨 Step 4: Sending notification to Expo...');
+    const message = {
+      to: expoPushToken,
+      sound: 'default',
+      title: notificationData.title,
+      body: notificationData.message,
+      data: notificationData.data || {},
+      priority: 'high',
+      channelId: 'default',
+    };
 
-  return () => {
-    foregroundSubscription.remove();
-    responseSubscription.remove();
-  };
-};
+    console.log('📦 Message payload:', {
+      to: message.to.substring(0, 30) + '...',
+      title: message.title,
+      body: message.body,
+      dataKeys: Object.keys(message.data),
+    });
 
-export const setupTokenRefreshListener = (userId) => {
-  console.log("🔄 Setting up token refresh for user:", userId);
-  // Your existing refresh logic
-};
-
-// TEST: Send a real push notification
-export const sendTestPushNotification = async (expoPushToken) => {
-  if (!expoPushToken || !expoPushToken.startsWith('ExponentPushToken')) {
-    console.log("❌ Cannot send test - no real token provided");
-    return false;
-  }
-
-  try {
-    console.log("📤 Sending test push notification to:", expoPushToken);
-    
     const response = await fetch('https://exp.host/--/api/v2/push/send', {
       method: 'POST',
       headers: {
-        'Accept': 'application/json',
+        Accept: 'application/json',
+        'Accept-encoding': 'gzip, deflate',
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify([{
-        to: expoPushToken,
-        title: 'Test from Lab App!',
-        body: 'This is a real push notification! 🎉',
-        sound: 'default',
-        data: { test: true, timestamp: new Date().toISOString() },
-      }]),
+      body: JSON.stringify(message),
     });
 
     const result = await response.json();
-    console.log("📨 Expo push response:", result);
+    console.log('\n📬 Expo API Response:', JSON.stringify(result, null, 2));
 
-    if (result.data && result.data.status === 'ok') {
-      console.log("✅ Test notification sent successfully!");
-      return true;
-    } else {
-      console.log("❌ Failed to send notification:", result);
-      return false;
-    }
-  } catch (error) {
-    console.error("❌ Error sending test notification:", error);
-    return false;
-  }
-};
+    // Step 5: Response check karo
+    console.log('\n🔍 Step 5: Processing response...');
 
-// Test local notification (always works)
-export const testLocalNotification = async () => {
-  try {
-    await Notifications.scheduleNotificationAsync({
-      content: {
-        title: "Local Test ✅",
-        body: "Local notifications are working!",
-        sound: 'default',
-        data: { test: true },
-      },
-      trigger: { seconds: 2 },
-    });
-    console.log("✅ Local test notification scheduled");
-    return true;
-  } catch (error) {
-    console.error("❌ Local notification failed:", error);
-    return false;
-  }
-};
+    if (result.data?.status === 'error') {
+      console.error('❌ Expo returned error:', result.data.message);
 
-/**
- * Send push notification when driver is assigned - FIXED VERSION
- */
-export const sendDriverAssignedNotification = async (userId, notificationData) => {
-    try {
-        console.log("🎯 Sending driver assigned notification for user:", userId);
-        
-        // ✅ FIXED: Get user's Expo push token from Firestore
-        const userData = await getDataFromFirestore('users', userId); // ✅ Use 'users' collection
-        
-        if (!userData) {
-            console.log("❌ No user data found in Firestore for user:", userId);
-            return {
-                success: false,
-                error: "User not found"
-            };
-        }
-
-        const expoPushToken = userData?.expoPushToken;
-        
-        if (!expoPushToken) {
-            console.log("❌ No Expo push token found for user:", userId);
-            return {
-                success: false,
-                error: "No push token available"
-            };
-        }
-
-        console.log("📱 Found Expo token:", expoPushToken);
-
-        // ✅ FIXED: Background notification settings
-        const response = await fetch('https://exp.host/--/api/v2/push/send', {
-            method: 'POST',
-            headers: {
-                'Accept': 'application/json',
-                'Accept-encoding': 'gzip, deflate',
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                to: expoPushToken,
-                title: notificationData.title || " partner Assigned!",
-                body: notificationData.message || "Your partner has been assigned and is on the way!",
-                sound: 'default',
-                data: notificationData.data || {
-                    type: "driver_assigned",
-                    screen: "DriverInfoScreen"
-                },
-                // ✅ IMPORTANT: Background notification settings
-                priority: 'high', // For Android
-                ttl: 60, // Time to live in seconds
-            }),
+      if (saveLog) {
+        await saveNotificationLog({
+          salesRepId,
+          salesRepName: salesRepData?.name || 'Unknown',
+          notificationData,
+          status: 'failed',
+          error: result.data.message,
+          expoResponse: result,
+          platform: salesRepData?.platform || 'unknown',
         });
+      }
 
-        const result = await response.json();
-        console.log("📨 Expo push response:", result);
-
-        if (result.data && result.data.status === 'ok') {
-            console.log("✅ Driver assigned notification sent successfully!");
-            return {
-                success: true,
-                message: "Notification sent successfully"
-            };
-        } else {
-            console.log("❌ Failed to send notification:", result);
-            return {
-                success: false,
-                error: result.errors || "Unknown error"
-            };
-        }
-    } catch (error) {
-        console.error("🔴 Error in sendDriverAssignedNotification:", error);
-        return {
-            success: false,
-            error: error.message
-        };
+      return {
+        success: false,
+        error: 'EXPO_ERROR',
+        message: result.data.message
+      };
     }
-};
+
+    if (result.data?.status === 'ok') {
+      console.log('✅ Notification sent successfully!');
+      console.log('========================================');
+
+      if (saveLog) {
+        await saveNotificationLog({
+          salesRepId,
+          salesRepName: salesRepData?.name || 'Unknown',
+          notificationData,
+          status: 'success',
+          expoResponse: result,
+          platform: salesRepData?.platform || 'unknown',
+        });
+      }
+
+      return {
+        success: true,
+        result,
+        message: `Notification sent to ${salesRepData?.name || salesRepId}`
+      };
+    }
+
+    // Unexpected response
+    console.warn('⚠️ Unexpected response from Expo:', result);
+    return {
+      success: false,
+      error: 'UNEXPECTED_RESPONSE',
+      message: 'Unexpected response from notification server'
+    };
+
+  } catch (error) {
+    console.error('========================================');
+    console.error('❌ NOTIFICATION ERROR:', error.message);
+    console.error('Stack:', error.stack);
+    console.error('========================================');
+
+    if (saveLog) {
+      await saveNotificationLog({
+        salesRepId,
+        notificationData,
+        status: 'error',
+        error: error.message,
+      });
+    }
+
+    return {
+      success: false,
+      error: 'NETWORK_ERROR',
+      message: error.message
+    };
+  }
+}
 
 /**
- * Generic push notification function
+ * Notification log Firebase me save karo - Debugging ke liye
  */
-export const sendPushNotification = async (userId, notificationData) => {
-    return await sendDriverAssignedNotification(userId, notificationData);
-};
-
-/**
- * Test function for driver assigned notification
- */
-export const testDriverAssignedNotification = async (userId) => {
-    console.log("🧪 Testing driver assigned notification...");
-    
-    // const result = await sendDriverAssignedNotification(userId, {
-    //     title: "TEST: Driver Assigned!",
-    //     message: "This is a test notification for driver assignment",
-    //     data: {
-    //         type: "test_driver_assigned",
-    //         rideId: "test_ride_123",
-    //         driverId: "test_driver_456",
-    //         test: true
-    //     }
-    // });
-    
-    console.log("🧪 Test result:", result);
-    return result;
-};
-
-// Background notification setup
-export const setupBackgroundNotifications = async () => {
+async function saveNotificationLog(logData) {
   try {
-    await Notifications.setNotificationHandler({
-      handleNotification: async () => ({
-        shouldShowAlert: true,
-        shouldPlaySound: true,
-        shouldSetBadge: true,
-      }),
+    const logRef = collection(db, 'notificationLogs');
+    await addDoc(logRef, {
+      ...logData,
+      createdAt: Timestamp.now(),
+      app: 'manager', // Identify which app sent this
+    });
+    console.log('📝 Notification log saved');
+  } catch (error) {
+    console.error('⚠️ Failed to save notification log:', error.message);
+    // Don't throw - logging failure shouldn't break the main flow
+  }
+}
+
+// =============================================================================
+// HELPER FUNCTIONS - Easy to use wrappers
+// =============================================================================
+
+/**
+ * Route assign hone par notification bhejo
+ *
+ * @param {string} salesRepId - Sales rep ID
+ * @param {object} routeInfo - Route information
+ * @param {string} routeInfo.routeId - Route document ID
+ * @param {string} routeInfo.routeName - Route name to display
+ * @param {number} routeInfo.stopsCount - Number of stops
+ * @param {string} routeInfo.assignmentId - Assignment document ID
+ * @param {Date} routeInfo.date - Assignment date
+ */
+export async function sendRouteAssignedNotification(salesRepId, routeInfo) {
+  const template = NOTIFICATION_TEMPLATES[NOTIFICATION_TYPES.ROUTE_ASSIGNED];
+
+  const notificationData = {
+    title: template.title,
+    message: template.getBody(routeInfo),
+    data: {
+      type: NOTIFICATION_TYPES.ROUTE_ASSIGNED,
+      routeId: routeInfo.routeId,
+      assignmentId: routeInfo.assignmentId,
+      screen: 'RouteDetailsScreen', // Sales rep app me navigate karne ke liye
+      date: routeInfo.date?.toISOString?.() || new Date().toISOString(),
+    },
+  };
+
+  return sendPushNotification(salesRepId, notificationData);
+}
+
+/**
+ * Route update hone par notification bhejo
+ */
+export async function sendRouteUpdatedNotification(salesRepId, routeInfo) {
+  const template = NOTIFICATION_TEMPLATES[NOTIFICATION_TYPES.ROUTE_UPDATED];
+
+  const notificationData = {
+    title: template.title,
+    message: template.getBody(routeInfo),
+    data: {
+      type: NOTIFICATION_TYPES.ROUTE_UPDATED,
+      routeId: routeInfo.routeId,
+      assignmentId: routeInfo.assignmentId,
+      screen: 'RouteDetailsScreen',
+    },
+  };
+
+  return sendPushNotification(salesRepId, notificationData);
+}
+
+// =============================================================================
+// FUTURE: Manager ko notifications bhejne ke functions
+// Jab sales rep route complete kare ya koi action le
+// =============================================================================
+
+/**
+ * Manager ko notification bhejo
+ * Ye function tab use hoga jab sales rep kuch kare aur manager ko batana ho
+ *
+ * @param {string} managerId - Manager ID (phone number)
+ * @param {object} notificationData - Notification data
+ */
+export async function sendNotificationToManager(managerId, notificationData) {
+  console.log('📤 Sending notification to Manager:', managerId);
+
+  try {
+    // Manager ka token 'managers' collection se fetch karo
+    const managerDoc = await getDoc(doc(db, 'managers', managerId));
+
+    if (!managerDoc.exists()) {
+      console.error('❌ Manager not found:', managerId);
+      return { success: false, error: 'MANAGER_NOT_FOUND' };
+    }
+
+    const managerData = managerDoc.data();
+    const expoPushToken = managerData?.expoPushToken;
+
+    if (!expoPushToken) {
+      console.warn('⚠️ Manager has no push token');
+      return { success: false, error: 'NO_PUSH_TOKEN' };
+    }
+
+    // Same notification sending logic
+    const message = {
+      to: expoPushToken,
+      sound: 'default',
+      title: notificationData.title,
+      body: notificationData.message,
+      data: notificationData.data || {},
+      priority: 'high',
+      channelId: 'default',
+    };
+
+    const response = await fetch('https://exp.host/--/api/v2/push/send', {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'Accept-encoding': 'gzip, deflate',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(message),
     });
 
-    console.log("✅ Background notifications configured");
-    return true;
-  } catch (error) {
-    console.error("❌ Error setting up background notifications:", error);
-    return false;
-  }
-};
+    const result = await response.json();
 
-// Default export
-export default {
-  getExpoPushToken,
-  notificationListener,
-  requestUserPermission,
-  setupNotificationChannel,
-  setupTokenRefreshListener,
-  sendTestPushNotification,
-  testLocalNotification,
-  sendDriverAssignedNotification,
-  sendPushNotification,
-  testDriverAssignedNotification,
-  setupBackgroundNotifications
-};
+    if (result.data?.status === 'ok') {
+      console.log('✅ Notification sent to Manager');
+
+      await saveNotificationLog({
+        managerId,
+        managerName: managerData?.name || 'Unknown',
+        notificationData,
+        status: 'success',
+        expoResponse: result,
+      });
+
+      return { success: true, result };
+    }
+
+    return { success: false, error: result.data?.message || 'Unknown error' };
+
+  } catch (error) {
+    console.error('❌ Error sending to manager:', error.message);
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Route complete hone par manager ko notification bhejo
+ * Ye Sales Rep app se call hogi
+ */
+export async function notifyManagerRouteCompleted(managerId, routeInfo) {
+  const template = NOTIFICATION_TEMPLATES[NOTIFICATION_TYPES.ROUTE_COMPLETED];
+
+  const notificationData = {
+    title: template.title,
+    message: template.getBody(routeInfo),
+    data: {
+      type: NOTIFICATION_TYPES.ROUTE_COMPLETED,
+      routeId: routeInfo.routeId,
+      salesRepId: routeInfo.salesRepId,
+      screen: 'RouteDetailsScreen',
+    },
+  };
+
+  return sendNotificationToManager(managerId, notificationData);
+}
+
+// =============================================================================
+// UTILITY FUNCTIONS
+// =============================================================================
+
+/**
+ * Check karo ke sales rep ka push token valid hai ya nahi
+ */
+export async function checkSalesRepNotificationStatus(salesRepId) {
+  try {
+    const salesRepDoc = await getDoc(doc(db, 'salesReps', salesRepId));
+
+    if (!salesRepDoc.exists()) {
+      return {
+        exists: false,
+        hasToken: false,
+        canReceiveNotifications: false
+      };
+    }
+
+    const data = salesRepDoc.data();
+    const hasToken = !!data?.expoPushToken;
+    const tokenValid = hasToken && data.expoPushToken.startsWith('ExponentPushToken[');
+
+    return {
+      exists: true,
+      hasToken,
+      tokenValid,
+      canReceiveNotifications: tokenValid,
+      platform: data?.platform || 'unknown',
+      name: data?.name,
+    };
+  } catch (error) {
+    console.error('Error checking notification status:', error);
+    return { exists: false, hasToken: false, error: error.message };
+  }
+}

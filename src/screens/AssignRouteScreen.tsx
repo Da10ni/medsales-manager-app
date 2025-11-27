@@ -33,6 +33,8 @@ import {
   Timestamp,
 } from "firebase/firestore";
 import { db } from "../services/firebase";
+import { sendRouteAssignedNotification } from "../services/notificationService";
+
 
 interface Route {
   id: string;
@@ -425,16 +427,94 @@ const AssignRouteScreen = ({ navigation }: any) => {
     return true;
   };
 
+  // const handleAssign = async () => {
+  //   if (!validateAssignments()) return;
+
+  //   setAssigning(true);
+  //   try {
+  //     // Create assignments in Firestore
+  //     for (const assignment of assignments) {
+  //       const assignmentId = `assignment_${Date.now()}_${
+  //         assignment.salesRepId
+  //       }`;
+  //       const assignedStops = assignment.stops.map((stopNumber) => {
+  //         const dist = selectedRoute!.distributors[stopNumber - 1];
+  //         const details = assignment.stopDetails.find(
+  //           (d) => d.stopNumber === stopNumber
+  //         );
+  //         return {
+  //           ...dist,
+  //           stopNumber,
+  //           activity: details?.activity || "visit",
+  //           customInstructions: details?.customInstructions || "",
+  //           status: "pending",
+  //         };
+  //       });
+
+  //       await setDoc(doc(db, "assignments", assignmentId), {
+  //         routeId: selectedRoute!.id,
+  //         routeName: selectedRoute!.name,
+  //         salesRepId: assignment.salesRepId,
+  //         salesRepName: assignment.salesRepName,
+  //         managerId: manager?.phone || "",
+  //         date: Timestamp.fromDate(selectedDate),
+  //         stops: assignedStops,
+  //         status: "pending",
+  //         createdAt: Timestamp.now(),
+  //       });
+
+  //             // 2️⃣ Notification bhejna
+  //     const notificationData = {
+  //       title: "New Route Assigned!",
+  //       message: `You have been assigned to route: ${selectedRoute!.name}`,
+  //       data: {
+  //         type: "route_assigned",
+  //         routeId: selectedRoute!.id,
+  //         screen: "RouteDetailsScreen",
+  //       },
+  //     };
+  //     await sendPushNotification(assignment.salesRepId, notificationData); 
+
+  //     }
+
+
+  //     Alert.alert(
+  //       "Success!",
+  //       `Route "${selectedRoute!.name}" has been assigned to ${
+  //         assignments.length
+  //       } sales rep${
+  //         assignments.length > 1 ? "s" : ""
+  //       } for ${selectedDate.toLocaleDateString()}`,
+  //       [
+  //         {
+  //           text: "OK",
+  //           onPress: () => navigation.goBack(),
+  //         },
+  //       ]
+  //     );
+  //   } catch (error: any) {
+  //     console.error("Error assigning route:", error);
+  //     Alert.alert("Error", "Failed to assign route. Please try again.");
+  //   } finally {
+  //     setAssigning(false);
+  //   }
+  // };
+
+
+
   const handleAssign = async () => {
     if (!validateAssignments()) return;
-
+  
     setAssigning(true);
+    
+    let successCount = 0;
+    let notificationCount = 0;
+  
     try {
       // Create assignments in Firestore
       for (const assignment of assignments) {
-        const assignmentId = `assignment_${Date.now()}_${
-          assignment.salesRepId
-        }`;
+        const assignmentId = `assignment_${Date.now()}_${assignment.salesRepId}`;
+        
         const assignedStops = assignment.stops.map((stopNumber) => {
           const dist = selectedRoute!.distributors[stopNumber - 1];
           const details = assignment.stopDetails.find(
@@ -448,7 +528,8 @@ const AssignRouteScreen = ({ navigation }: any) => {
             status: "pending",
           };
         });
-
+  
+        // 1️⃣ Assignment create karo
         await setDoc(doc(db, "assignments", assignmentId), {
           routeId: selectedRoute!.id,
           routeName: selectedRoute!.name,
@@ -460,15 +541,35 @@ const AssignRouteScreen = ({ navigation }: any) => {
           status: "pending",
           createdAt: Timestamp.now(),
         });
+  
+        successCount++;
+  
+        // 2️⃣ Push notification bhejo using clean helper function
+        const notificationResult = await sendRouteAssignedNotification(
+          assignment.salesRepId,
+          {
+            routeId: selectedRoute!.id,
+            routeName: selectedRoute!.name,
+            stopsCount: assignedStops.length,
+            assignmentId: assignmentId,
+            date: selectedDate,
+          }
+        );
+  
+        if (notificationResult.success) {
+          notificationCount++;
+          console.log(`✅ Notification sent to ${assignment.salesRepName}`);
+        } else {
+          console.warn(`⚠️ Failed to send notification to ${assignment.salesRepName}:`, notificationResult.error);
+        }
       }
-
+  
+      // Success message
       Alert.alert(
-        "Success!",
-        `Route "${selectedRoute!.name}" has been assigned to ${
-          assignments.length
-        } sales rep${
-          assignments.length > 1 ? "s" : ""
-        } for ${selectedDate.toLocaleDateString()}`,
+        "Success! 🎉",
+        `Route "${selectedRoute!.name}" has been assigned to ${assignments.length} sales rep${assignments.length > 1 ? "s" : ""}.\n\n` +
+        `✅ Assignments created: ${successCount}\n` +
+        `🔔 Notifications sent: ${notificationCount}`,
         [
           {
             text: "OK",
@@ -476,9 +577,13 @@ const AssignRouteScreen = ({ navigation }: any) => {
           },
         ]
       );
+  
     } catch (error: any) {
       console.error("Error assigning route:", error);
-      Alert.alert("Error", "Failed to assign route. Please try again.");
+      Alert.alert(
+        "Error",
+        `Failed to assign route. ${successCount} of ${assignments.length} assignments were created.\n\nError: ${error.message}`
+      );
     } finally {
       setAssigning(false);
     }
@@ -611,7 +716,7 @@ const AssignRouteScreen = ({ navigation }: any) => {
 
             {/* Sales Rep Selection */}
             <TouchableOpacity
-            style={styles.subsectionTitle}
+              style={styles.subsectionTitle}
               onPress={() => {
                 setFilteredSalesReps(salesReps);
                 setSearchQuery("");
@@ -722,32 +827,6 @@ const AssignRouteScreen = ({ navigation }: any) => {
                 </ScrollView>
               </View>
             </Modal>
-
-            {/* {salesReps.length === 0 ? (
-              <Text style={styles.emptyText}>No sales reps available</Text>
-            ) : (
-              salesReps.map((rep) => (
-                <TouchableOpacity
-                  key={rep.id}
-                  style={styles.salesRepItem}
-                  onPress={() => handleSalesRepToggle(rep.id)}
-                >
-                  <Checkbox
-                    status={
-                      selectedSalesReps.includes(rep.id)
-                        ? "checked"
-                        : "unchecked"
-                    }
-                    onPress={() => handleSalesRepToggle(rep.id)}
-                    color="#2196F3"
-                  />
-                  <View style={styles.salesRepInfo}>
-                    <Text style={styles.salesRepName}>{rep.name}</Text>
-                    <Text style={styles.salesRepPhone}>{rep.phone}</Text>
-                  </View>
-                </TouchableOpacity>
-              ))
-            )} */}
 
             <Divider style={styles.divider} />
 
@@ -869,6 +948,7 @@ const AssignRouteScreen = ({ navigation }: any) => {
                                   Custom Instructions
                                 </Text>
                                 <TextInput
+                                  style={styles.instructionsInput}
                                   mode="outlined"
                                   placeholder="Enter custom instructions for this stop (optional)"
                                   value={stopDetails?.customInstructions || ""}
@@ -881,7 +961,6 @@ const AssignRouteScreen = ({ navigation }: any) => {
                                   }
                                   multiline
                                   numberOfLines={2}
-                                  style={styles.instructionsInput}
                                   outlineColor="#E0E0E0"
                                   activeOutlineColor="#2196F3"
                                 />
@@ -1226,6 +1305,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFF",
     fontSize: 14,
     marginBottom: 8,
+    paddingTop: 10,
   },
   selectedStopsInfo: {
     flexDirection: "row",
