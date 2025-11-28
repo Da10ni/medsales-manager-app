@@ -1,6 +1,6 @@
-import React from 'react';
-import { View, StyleSheet } from 'react-native';
-import { Title, Text, Button, useTheme } from 'react-native-paper';
+import React from "react";
+import { View, StyleSheet } from "react-native";
+import { Title, Text, Button, useTheme } from "react-native-paper";
 
 const WelcomeScreen = ({ navigation }: any) => {
   const theme = useTheme();
@@ -10,36 +10,17 @@ const WelcomeScreen = ({ navigation }: any) => {
       <View style={styles.content}>
         <View style={styles.logoContainer}>
           <View style={styles.logoCircle}>
-            <Text style={styles.logoText}>MM</Text>
+            <Text style={styles.logoText}>MS</Text>
           </View>
           <Title style={styles.title}>MedSales Manager</Title>
-          <Text style={styles.subtitle}>Manage Your Sales Team</Text>
-        </View>
-
-        <View style={styles.features}>
-          <FeatureItem
-            icon="👥"
-            text="Manage sales representatives"
-          />
-          <FeatureItem
-            icon="🗺️"
-            text="Assign optimized routes"
-          />
-          <FeatureItem
-            icon="📊"
-            text="Track team performance"
-          />
-          <FeatureItem
-            icon="📈"
-            text="View detailed analytics"
-          />
+          <Text style={styles.subtitle}>Your Medical Sales Companion</Text>
         </View>
       </View>
 
       <View style={styles.footer}>
         <Button
           mode="contained"
-          onPress={() => navigation.navigate('Onboarding')}
+          onPress={() => navigation.navigate("Onboarding")}
           style={styles.getStartedButton}
           contentStyle={styles.buttonContent}
           buttonColor="#fff"
@@ -49,7 +30,7 @@ const WelcomeScreen = ({ navigation }: any) => {
         </Button>
         <Button
           mode="text"
-          onPress={() => navigation.navigate('Login')}
+          onPress={() => navigation.navigate("Login")}
           style={styles.loginButton}
           textColor="#fff"
         >
@@ -60,76 +41,49 @@ const WelcomeScreen = ({ navigation }: any) => {
   );
 };
 
-const FeatureItem = ({ icon, text }: { icon: string; text: string }) => (
-  <View style={styles.featureItem}>
-    <Text style={styles.featureIcon}>{icon}</Text>
-    <Text style={styles.featureText}>{text}</Text>
-  </View>
-);
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
   content: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 30,
   },
   logoContainer: {
-    alignItems: 'center',
-    marginBottom: 60,
+    alignItems: "center",
+    marginBottom: 20,
   },
   logoCircle: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: '#fff',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 20,
-    shadowColor: '#000',
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: "#fff",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 15,
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 8,
   },
   logoText: {
-    fontSize: 50,
-    fontWeight: 'bold',
-    color: '#2196F3',
+    fontSize: 40,
+    fontWeight: "bold",
+    color: "#2196F3",
   },
   title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 8,
+    fontSize: 28,
+    fontWeight: "bold",
+    color: "#fff",
+    marginBottom: 4,
   },
   subtitle: {
-    fontSize: 16,
-    color: '#fff',
+    fontSize: 14,
+    color: "#fff",
     opacity: 0.9,
-  },
-  features: {
-    width: '100%',
-  },
-  featureItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    padding: 16,
-    borderRadius: 12,
-  },
-  featureIcon: {
-    fontSize: 24,
-    marginRight: 16,
-  },
-  featureText: {
-    fontSize: 16,
-    color: '#fff',
-    flex: 1,
   },
   footer: {
     padding: 20,
