@@ -1,89 +1,67 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef } from "react";
 import {
   View,
   StyleSheet,
-  Dimensions,
   FlatList,
-  ViewToken,
+  Dimensions,
+  TouchableOpacity,
   Image,
-  ImageSourcePropType,
-} from 'react-native';
-import { Title, Text, Button, useTheme } from 'react-native-paper';
+} from "react-native";
+import { Button, Text } from "react-native-paper";
+import { LinearGradient } from "expo-linear-gradient";
 
-const { width, height } = Dimensions.get('window');
+const { width, height } = Dimensions.get("window");
 
-interface OnboardingSlide {
-  id: string;
-  title: string;
-  description: string;
-  image: ImageSourcePropType;
-  backgroundColor: string;
-}
-
-const slides: OnboardingSlide[] = [
+const slides = [
   {
-    id: '1',
-    title: 'Manage Sales Team',
-    description: 'Oversee your sales representatives, track their performance, and manage their availability.',
-    image: require('../../assets/images/manageSales.jpg'),
-    backgroundColor: '#000001ff',
+    id: "1",
+    title: "Manage Your Team",
+    description:
+      "Add, monitor, and manage your sales reps easily. Stay in control of your field team performance.",
+    image: require("../../../assets/images/manageYourTeam.png"),
   },
   {
-    id: '2',
-    title: 'Assign Routes',
-    description: 'Create and assign optimized routes to your sales reps with multiple locations and tasks.',
-    image: require('../../assets/images/Assign-routes.jpg'),
-    backgroundColor: '#000000ff',
+    id: "2",
+    title: "Assign Routes Quickly",
+    description:
+      "Assign daily or weekly routes to your sales reps with just one tap. Keep everything organized.",
+    image: require("../../../assets/images/assignRouteQuickly.png"),
   },
   {
-    id: '3',
-    title: 'Track Performance',
-    description: 'Monitor real-time progress, view analytics, and make data-driven decisions.',
-    image: require('../../assets/images/track-perfomance.jpg'),
-    backgroundColor: '#000000ff',
+    id: "3",
+    title: "Track Sales Activity",
+    description:
+      "Assign daily or weekly routes to your sales reps with just one tap. Keep everything organized.",
+    image: require("../../../assets/images/trackActivity.png"),
   },
 ];
 
 const OnboardingScreen = ({ navigation }: any) => {
-  const theme = useTheme();
   const [currentIndex, setCurrentIndex] = useState(0);
   const flatListRef = useRef<FlatList>(null);
 
-  const onViewableItemsChanged = useRef(
-    ({ viewableItems }: { viewableItems: ViewToken[] }) => {
-      if (viewableItems.length > 0) {
-        setCurrentIndex(viewableItems[0].index || 0);
-      }
-    }
-  ).current;
-
-  const viewabilityConfig = useRef({
-    itemVisiblePercentThreshold: 50,
-  }).current;
-
   const handleNext = () => {
     if (currentIndex < slides.length - 1) {
-      flatListRef.current?.scrollToIndex({
-        index: currentIndex + 1,
-        animated: true,
-      });
+      flatListRef.current?.scrollToIndex({ index: currentIndex + 1 });
     } else {
-      navigation.replace('Login');
+      navigation.replace("Login");
     }
   };
 
   const handleSkip = () => {
-    navigation.replace('Login');
+    navigation.replace("Login");
   };
 
-  const renderSlide = ({ item }: { item: OnboardingSlide }) => (
-    <View
-      style={[styles.slide, { backgroundColor: item.backgroundColor }]}
-    >
-      <View style={styles.slideContent}>
-        <Image source={item.image} style={styles.slideImage} resizeMode="contain" />
-        <Title style={styles.slideTitle}>{item.title}</Title>
-        <Text style={styles.slideDescription}>{item.description}</Text>
+  const renderSlide = ({ item }: { item: (typeof slides)[0] }) => (
+    <View style={[styles.slide, { width }]}>
+      <View style={[styles.content]}>
+        <Image
+          source={item.image}
+          style={styles.slideImage}
+          resizeMode="contain"
+        />
+        <Text style={styles.title}>{item.title}</Text>
+        <Text style={styles.description}>{item.description}</Text>
       </View>
     </View>
   );
@@ -94,43 +72,58 @@ const OnboardingScreen = ({ navigation }: any) => {
         ref={flatListRef}
         data={slides}
         renderItem={renderSlide}
-        keyExtractor={(item) => item.id}
         horizontal
         pagingEnabled
         showsHorizontalScrollIndicator={false}
-        onViewableItemsChanged={onViewableItemsChanged}
-        viewabilityConfig={viewabilityConfig}
+        bounces={false}
+        onMomentumScrollEnd={(event) => {
+          const index = Math.round(event.nativeEvent.contentOffset.x / width);
+          setCurrentIndex(index);
+        }}
       />
 
-      <View style={styles.footer}>
-        <View style={styles.pagination}>
-          {slides.map((_, index) => (
-            <View
-              key={index}
-              style={[
-                styles.paginationDot,
-                currentIndex === index && styles.paginationDotActive,
-              ]}
-            />
-          ))}
-        </View>
+      {/* Pagination Dots */}
+      <View style={styles.pagination}>
+        {slides.map((_, index) => (
+          <View
+            key={index}
+            style={[
+              styles.dot,
+              currentIndex === index ? styles.dotActive : styles.dotInactive,
+            ]}
+          />
+        ))}
+      </View>
 
-        <View style={styles.buttons}>
-          <Button
-            mode="text"
-            onPress={handleSkip}
-            textColor={slides[currentIndex].backgroundColor}
-          >
-            Skip
-          </Button>
+      {/* Bottom Buttons */}
+      <View style={styles.footer}>
+        {currentIndex < slides.length - 1 ? (
+          <>
+            <TouchableOpacity onPress={handleSkip} style={styles.skipButton}>
+              <Text style={styles.skipText}>Skip</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={handleNext} style={[styles.nextButton, { backgroundColor: '#ceedff' }]}>
+              <LinearGradient
+                colors={["#ceedff", "#ceedff"]}
+                style={styles.nextButtonGradient}
+              >
+                <Text style={styles.nextText}>Next</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </>
+        ) : (
           <Button
             mode="contained"
             onPress={handleNext}
-            buttonColor={slides[currentIndex].backgroundColor}
+            style={styles.getStartedButton}
+            contentStyle={styles.getStartedContent}
+            labelStyle={styles.getStartedLabel}
+            buttonColor="#ceedff"
+            textColor="#35a6e2"
           >
-            {currentIndex === slides.length - 1 ? 'Get Started' : 'Next'}
+            Get Started
           </Button>
-        </View>
+        )}
       </View>
     </View>
   );
@@ -139,66 +132,107 @@ const OnboardingScreen = ({ navigation }: any) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: "#4CAF50",
   },
   slide: {
-    width,
-    height: height * 0.75,
-    justifyContent: 'center',
-    alignItems: 'center',
+    flex: 1,
   },
-  slideContent: {
-    alignItems: 'center',
-    padding: 40,
+  gradient: {},
+  content: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 40,
+    backgroundColor: "#fff",
+  },
+  emoji: {
+    fontSize: 120,
+    marginBottom: 40,
+  },
+  title: {
+    fontSize: 32,
+    fontWeight: "bold",
+    color: "#000",
+    textAlign: "center",
+    marginBottom: 16,
+  },
+  description: {
+    fontSize: 16,
+    color: "rgba(0, 0, 0, 0.9)",
+    textAlign: "center",
+    lineHeight: 24,
+  },
+  pagination: {
+    flexDirection: "row",
+    position: "absolute",
+    bottom: 120,
+    alignSelf: "center",
+  },
+  dot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginHorizontal: 6,
+  },
+  dotActive: {
+    backgroundColor: "#35a6e2",
+    width: 24,
+  },
+  dotInactive: {
+    backgroundColor: "#E8F5E9"
   },
   slideImage: {
     width: width * 0.9,
     height: height * 0.4,
     marginBottom: 40,
   },
-  slideTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#bda6a6ff',
-    marginBottom: 16,
-    textAlign: 'center',
-  },
-  slideDescription: {
-    fontSize: 16,
-    color: '#fff',
-    textAlign: 'center',
-    lineHeight: 24,
-    opacity: 0.9,
-  },
   footer: {
-    position: 'absolute',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingBottom: 50,
+    position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: '#fff',
-    padding: 20,
-    paddingBottom: 40,
   },
-  pagination: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    marginBottom: 20,
+  skipButton: {
+    paddingVertical: 14,
+    paddingHorizontal: 32,
+    borderRadius: 12,
+    backgroundColor: "#35a6e2",
   },
-  paginationDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#ddd',
-    marginHorizontal: 4,
+  skipText: {
+    color: "white",
+    fontSize: 16,
+    fontWeight: "500",
   },
-  paginationDotActive: {
-    width: 24,
-    backgroundColor: '#2196F3',
+  nextButton: {
+    borderRadius: 12,
+    overflow: "hidden",
+    backgroundColor: "#ceedffs",
   },
-  buttons: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+  nextButtonGradient: {
+    paddingVertical: 14,
+    paddingHorizontal: 32,
+    borderRadius: 12,
+  },
+  nextText: {
+    color: "#35a6e2",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  getStartedButton: {
+    flex: 1,
+    borderRadius: 12,
+    elevation: 4,
+  },
+  getStartedContent: {
+    paddingVertical: 8,
+  },
+  getStartedLabel: {
+    fontSize: 18,
+    fontWeight: "600",
   },
 });
 
